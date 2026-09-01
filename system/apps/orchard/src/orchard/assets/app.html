@@ -1,0 +1,1725 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Orchard — fruit basket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* Orchard theme — warm leaf-cream paper, deep bark ink, orchard greens with
+       apple-red and golden-apple accents. */
+    --paper: #F6F8EF;
+    --panel: #FFFFFF;
+    --ink: #33372B;
+    --muted: #7B846E;
+    --faint: #AAB29A;
+    --hair: #E6EBD9;
+    --hair2: #F0F4E7;
+
+    /* Sending identities — each inbox owns an orchard hue (leaf green, golden
+       apple, red apple) that threads through the UI. The mid tone is readable on
+       white (text, marks, links); the -bg is the pale wash for fills, avatars,
+       and selected states. */
+    --you: #4E9A55;
+    --you-bg: #E6F2E1;
+    --josh: #C58A2C;
+    --josh-bg: #F7EEDA;
+    --kj: #C0504A;
+    --kj-bg: #F7E4E1;
+
+    /* Pipeline stages — ripening: golden while sent, ripe green once opened. */
+    --sent: #BE8A34;
+    --sent-bg: #F7EEDA;
+    --opened: #57993F;
+    --opened-bg: #E7F1DF;
+
+    --shadow: 0 1px 2px rgba(51,55,43,.04), 0 6px 20px rgba(51,55,43,.07);
+    --shadow-lg: 0 8px 40px rgba(51,55,43,.16);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  html { overflow-x: auto; }
+  body {
+    /* Dynamic down to a floor, then scroll. The floor is min-content -- the width
+       at which the table (its columns can't compress any further) stops shrinking.
+       Above it the layout is fully fluid: fields resize and reflow with the window.
+       At the floor it stops shrinking, so a contracted window scrolls sideways
+       (two-finger / trackpad, same gesture as vertical) to reach the whole app --
+       right out to the actions column -- instead of clipping it off. Using
+       min-content (not a fixed px) keeps the whole table reachable even when longer
+       names or emails widen it. The scrollbar is the on-gesture overlay kind. */
+    min-width: min-content;
+    background: var(--paper); color: var(--ink);
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    /* The whole UI reads in lowercase for a soft, orchard feel. User content and
+       message text opt back out via .keepcase below so real capitalization shows. */
+    text-transform: lowercase;
+  }
+  /* Anything the user typed or that is an actual email/message keeps its real
+     capitalization: candidate data, addresses, template + compose fields and
+     previews, and names echoed in toasts/notifications. */
+  input, textarea, select,
+  .avatar, .person .name, .person .role, .email, .fromopt .addr,
+  #d-name, #d-role, #prev-to, #prev-from, #prev-email,
+  .preview .subject, .preview .msg, .tpl-row .nm, .tpl-row .sj,
+  .noti .t, .toast .t, .dcomp.text, .hm-sub, .hm-body { text-transform: none; }
+  /* Form controls don't inherit text-transform, so lowercase them explicitly;
+     placeholders follow the lowercase UI while typed values keep their real case. */
+  button { text-transform: lowercase; }
+  ::placeholder { text-transform: lowercase; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  a { color: inherit; }
+
+  /* ---- header ---- */
+  header { border-bottom: 1px solid var(--hair); background: var(--paper); position: sticky; top: 0; z-index: 20; }
+  .topbar { display: flex; align-items: baseline; justify-content: space-between; padding: 20px 0 8px; }
+  .brand { font-family: "Space Grotesk", sans-serif; font-weight: 700; letter-spacing: -.01em; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .brand .applemark { display: inline-flex; }
+  .legend { display: flex; align-items: center; gap: 16px; font-size: 12px; color: var(--muted); }
+  .legend .id { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 9px; height: 9px; border-radius: 50%; }
+
+  .hero { padding: 16px 0 22px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .hero h1 {
+    font-family: "Space Grotesk", sans-serif; font-weight: 600; letter-spacing: -.02em;
+    font-size: clamp(26px, 3.6vw, 38px); line-height: 1.1; margin: 0; max-width: 20ch;
+  }
+  .hero h1 .accent { color: var(--kj); }
+  .pipeline { display: flex; gap: 10px; }
+  .stat { background: var(--panel); border: 1px solid var(--hair); border-radius: 12px; padding: 11px 16px; min-width: 92px; box-shadow: var(--shadow); }
+  .stat .n { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 24px; letter-spacing: -.02em; }
+  .stat .l { font-size: 11.5px; letter-spacing: .04em; text-transform: lowercase; color: var(--faint); margin-top: 2px; }
+  .stat.-opened .n { color: var(--opened); }
+
+  /* ---- toolbar ---- */
+  .toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 0 16px; flex-wrap: wrap; }
+  .toolbar .tools { flex-wrap: wrap; justify-content: flex-end; }
+  /* The flex:1 spacer pushes the tools to the right on a wide toolbar; once the
+     toolbar wraps it collapses so the tools sit directly below search + add. */
+  .toolbar > .spacer { flex: 1 1 0; min-width: 0; }
+  .search { flex: 1; max-width: 320px; min-width: 180px; position: relative; }
+  .search input { width: 100%; border: 1px solid var(--hair); background: var(--panel); border-radius: 9px; padding: 9px 11px 9px 32px; font: inherit; font-size: 13.5px; }
+  .search input:focus { outline: 2px solid var(--you); outline-offset: 0; border-color: transparent; }
+  .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+  .btn { font: inherit; font-size: 13.5px; border-radius: 9px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--hair); background: var(--panel); color: var(--ink); }
+  .btn:hover { background: var(--hair2); }
+  .btn.-primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .btn.-primary:hover { background: #2E2B38; }
+  .btn.-ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  .btn.-ghost:hover { color: var(--ink); background: var(--hair2); }
+
+  /* ---- table ---- */
+  .card { background: var(--panel); border: 1px solid var(--hair); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 80px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; font-size: 11px; letter-spacing: .12em; text-transform: lowercase; color: var(--faint); font-weight: 600; padding: 13px 16px; border-bottom: 1px solid var(--hair); }
+  tbody td { padding: 14px 16px; border-bottom: 1px solid var(--hair2); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background .1s; }
+  tbody tr:hover { background: #FCFBF8; }
+
+  .person { display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-content: center; font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 13px; color: var(--ink); letter-spacing: .01em; }
+  .person .name { font-weight: 550; }
+  .person .role { font-size: 12.5px; color: var(--muted); }
+  .linkcell a { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--josh); text-decoration: none; padding: 3px 8px; border: 1px solid var(--hair); border-radius: 7px; }
+  .linkcell a:hover { background: var(--josh-bg); border-color: transparent; }
+  .email { font-size: 12.5px; color: var(--muted); }
+
+  /* clickable candidate name + message-history modal */
+  .namebtn { background: none; border: 0; padding: 0; font: inherit; font-weight: 550; color: var(--ink); cursor: pointer; text-align: left; }
+  .namebtn:hover { text-decoration: underline; }
+  .histmsg { border: 1px solid var(--hair); border-radius: 11px; padding: 12px 14px; margin-bottom: 10px; background: #FCFBF6; }
+  .hm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .hm-sub { font-weight: 600; font-size: 14px; }
+  .hm-meta { font-size: 11.5px; color: var(--muted); margin: 3px 0 8px; }
+  .hm-body { font-size: 13px; color: var(--ink); white-space: pre-wrap; line-height: 1.5; }
+
+  /* prior sends + follow-up-on-thread in the compose drawer */
+  .priorsend { border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: #FCFBF6; }
+  .priorsend .ps-sub { font-weight: 600; font-size: 13px; }
+  .priorsend .ps-meta { font-size: 11.5px; color: var(--muted); margin: 2px 0 6px; }
+  .priorsend .ps-body { font-size: 12.5px; color: var(--muted); white-space: pre-wrap; max-height: 66px; overflow: hidden; }
+  .thread-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); margin-top: 4px; cursor: pointer; text-transform: none; }
+  .thread-toggle input { width: auto; }
+
+  /* manual stage dropdown on each row */
+  .stagesel { font: inherit; font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--hair); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  .stagesel:focus { outline: 2px solid var(--you); outline-offset: 0; border-color: transparent; }
+
+  /* pipeline track — the signature element */
+  .track { display: flex; align-items: center; gap: 0; }
+  .node { width: 9px; height: 9px; border-radius: 50%; border: 1.6px solid var(--hair); background: var(--panel); flex: none; z-index: 1; }
+  .seg { width: 20px; height: 2px; background: var(--hair); }
+  .track.-sent .node.n1, .track.-sent .node.n2,
+  .track.-opened .node.n1, .track.-opened .node.n2, .track.-opened .node.n3 { border-color: transparent; }
+  .track .stagelabel { margin-left: 10px; font-size: 12.5px; white-space: nowrap; }
+  .track .when { color: var(--faint); font-size: 11.5px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px; border-radius: 20px; font-weight: 500; }
+  .badge.-none { color: var(--muted); background: var(--hair2); }
+  .badge.-sent { color: var(--sent); background: var(--sent-bg); }
+  .badge.-opened { color: var(--opened); background: var(--opened-bg); }
+
+  .fromchip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .fromchip .swatch { width: 8px; height: 8px; border-radius: 50%; }
+
+  .rowactions { text-align: right; white-space: nowrap; }
+  .empty { padding: 60px 20px; text-align: center; color: var(--muted); }
+  .empty h3 { font-family: "Space Grotesk", sans-serif; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
+
+  /* ---- drawer (compose) ---- */
+  .scrim { position: fixed; inset: 0; background: rgba(28,33,39,.32); opacity: 0; pointer-events: none; transition: opacity .18s; z-index: 40; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(560px, 94vw); background: var(--panel); box-shadow: var(--shadow-lg); transform: translateX(100%); transition: transform .22s cubic-bezier(.4,0,.2,1); z-index: 41; display: flex; flex-direction: column; }
+  .drawer.open { transform: none; }
+  .drawer header { position: static; border-bottom: 1px solid var(--hair); padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; background: var(--panel); }
+  .drawer header .who { display: flex; align-items: center; gap: 12px; }
+  .drawer h2 { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 17px; margin: 0; }
+  .drawer .sub { font-size: 12.5px; color: var(--muted); }
+  .x { border: 0; background: none; font-size: 20px; color: var(--faint); cursor: pointer; line-height: 1; padding: 4px; }
+  .x:hover { color: var(--ink); }
+  .drawer .body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+  .drawer .foot { border-top: 1px solid var(--hair); padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--panel); }
+
+  .field { margin-bottom: 18px; }
+  .field > label { display: block; font-size: 11.5px; letter-spacing: .05em; text-transform: lowercase; color: var(--faint); font-weight: 600; margin-bottom: 8px; }
+
+  /* from-inbox picker */
+  .frompick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .fromopt { border: 1.5px solid var(--hair); border-radius: 10px; padding: 10px; cursor: pointer; text-align: left; background: var(--panel); transition: border-color .12s, background .12s; }
+  .fromopt .nm { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 7px; }
+  .fromopt .swatch { width: 9px; height: 9px; border-radius: 50%; }
+  .fromopt .addr { font-size: 11px; color: var(--faint); margin-top: 3px; word-break: break-all; }
+  .fromopt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-bg); }
+
+  select, .templatebody, .inp { width: 100%; font: inherit; border: 1px solid var(--hair); border-radius: 9px; background: var(--panel); color: var(--ink); }
+  select, .inp { padding: 9px 11px; font-size: 13.5px; }
+  select:focus, .templatebody:focus, .inp:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+  .templatebody { padding: 12px 13px; font-size: 13.5px; line-height: 1.55; min-height: 150px; resize: vertical; }
+  .tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .token { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--accent); background: var(--accent-bg); border: 0; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+  .token:hover { filter: brightness(.96); }
+  /* floating "add link" popover: appears when you highlight text in a message box */
+  .linkpop { position: fixed; z-index: 100; display: none; align-items: center; gap: 4px;
+    background: var(--ink); color: #fff; border-radius: 9px; padding: 4px 5px;
+    box-shadow: var(--shadow-lg); }
+  .linkpop.show { display: flex; }
+  .linkpop button { font: inherit; font-size: 12.5px; border: 0; background: none; color: #fff;
+    cursor: pointer; padding: 4px 8px; border-radius: 6px; display: flex; align-items: center; gap: 5px; }
+  .linkpop button:hover { background: rgba(255,255,255,.16); }
+  .linkpop input { font: inherit; font-size: 12.5px; border: 0; border-radius: 6px; padding: 6px 9px;
+    background: #fff; color: var(--ink); width: 230px; text-transform: none; }
+  .linkpop input:focus { outline: 2px solid var(--accent); }
+
+  .preview { border: 1px solid var(--hair); border-radius: 11px; overflow: hidden; }
+  .preview .head { padding: 11px 14px; border-bottom: 1px solid var(--hair2); font-size: 12.5px; color: var(--muted); background: #FCFBF8; }
+  .preview .head b { color: var(--ink); font-weight: 550; }
+  .preview .subject { padding: 11px 14px 6px; font-weight: 600; }
+  .preview .msg { padding: 4px 14px 16px; white-space: pre-wrap; font-size: 13.5px; line-height: 1.6; }
+  .preview .msg mark { background: var(--accent-bg); color: var(--accent); border-radius: 3px; padding: 0 2px; font-weight: 500; }
+
+  /* ---- toast ---- */
+  .toasts { position: fixed; right: 22px; bottom: 22px; z-index: 60; display: flex; flex-direction: column; gap: 10px; }
+  .toast { background: var(--ink); color: #fff; border-radius: 12px; padding: 13px 16px; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 12px; min-width: 260px; transform: translateY(12px); opacity: 0; transition: transform .2s, opacity .2s; }
+  .toast.show { transform: none; opacity: 1; }
+  .toast .eye { width: 30px; height: 30px; border-radius: 8px; background: var(--opened); display: grid; place-content: center; flex: none; }
+  .emojibadge { flex: none; display: grid; place-content: center; font-size: 22px; line-height: 1; }
+  .toast .t { font-size: 13.5px; }
+  .toast .t b { font-weight: 600; }
+  .toast .t .m { color: #C9CDD3; font-size: 12px; }
+
+  /* add-candidate inline form */
+  .addform { display: grid; grid-template-columns: 1.3fr 1.1fr .9fr 1.2fr 1.2fr auto; gap: 8px; padding: 12px 16px; background: var(--hair2); border-bottom: 1px solid var(--hair); }
+  .addform.hidden { display: none; }
+  .addform .inp { font-size: 13px; padding: 8px 10px; }
+  @media (max-width: 820px) { .addform { grid-template-columns: 1fr 1fr; } }
+  .iconbtn { border: 1px solid var(--hair); background: var(--panel); border-radius: 8px; padding: 7px 9px; cursor: pointer; color: var(--muted); font: inherit; font-size: 13px; margin-left: 6px; }
+  .iconbtn:hover { background: var(--hair2); color: var(--ink); }
+  .iconbtn.-danger:hover { background: var(--kj-bg); color: var(--kj); border-color: transparent; }
+  .foot-note { max-width: 240px; line-height: 1.35; }
+  .warn { margin-top: 9px; font-size: 12px; color: var(--sent); background: var(--sent-bg); border-radius: 8px; padding: 7px 10px; display: none; }
+  .warn.show { display: block; }
+
+  /* header controls: bell + settings + templates */
+  .tools { display: flex; align-items: center; gap: 8px; }
+  .bell { position: relative; }
+  .bell .count { position: absolute; top: -5px; right: -5px; background: var(--kj); color: #fff; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: none; place-content: center; padding: 0 4px; }
+  .bell .count.show { display: grid; }
+  .dropdown { position: absolute; right: 0; top: calc(100% + 8px); width: 300px; background: var(--opened-bg); border: 1px solid var(--opened); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 8px; display: none; z-index: 30; }
+  .dropdown.open { display: block; }
+  .dropdown .empty2 { color: var(--opened); font-size: 13px; padding: 14px; text-align: center; }
+  .noti { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; }
+  .noti:hover { background: var(--panel); }
+  .noti .eye { width: 26px; height: 26px; border-radius: 7px; background: var(--opened); display: grid; place-content: center; flex: none; }
+  .noti .t { font-size: 13px; } .noti .t .m { color: var(--faint); font-size: 11.5px; }
+
+  /* centered modal (settings, templates) */
+  .modal-scrim { position: fixed; inset: 0; background: rgba(59,55,70,.32); opacity: 0; pointer-events: none; transition: opacity .16s; z-index: 50; display: grid; place-items: center; padding: 24px; }
+  .modal-scrim.open { opacity: 1; pointer-events: auto; }
+  .modal { background: var(--panel); border-radius: 16px; box-shadow: var(--shadow-lg); width: min(680px, 96vw); max-height: 88vh; display: flex; flex-direction: column; transform: translateY(8px); transition: transform .18s; }
+  .modal-scrim.open .modal { transform: none; }
+  .modal header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--hair); }
+  .modal h2 { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 17px; margin: 0; }
+  .modal .body { padding: 20px 22px; overflow-y: auto; }
+  .modal .foot { padding: 14px 22px; border-top: 1px solid var(--hair); display: flex; justify-content: flex-end; gap: 8px; }
+  .modal label.fld { display: block; font-size: 11.5px; letter-spacing: .05em; text-transform: lowercase; color: var(--faint); font-weight: 600; margin: 0 0 7px; }
+  .modal .fld + input, .modal .fld + textarea { margin-bottom: 16px; }
+  .modal input, .modal textarea { width: 100%; font: inherit; font-size: 13.5px; border: 1px solid var(--hair); border-radius: 9px; padding: 9px 11px; background: var(--panel); color: var(--ink); }
+  .modal input:focus, .modal textarea:focus { outline: 2px solid var(--you); outline-offset: 0; border-color: transparent; }
+  .modal .hint { font-size: 12px; color: var(--muted); margin: -8px 0 16px; }
+
+  /* founder voices */
+  .voicetabs { display: flex; gap: 8px; margin: 4px 0 14px; }
+  .voicetab { border: 1.5px solid var(--hair); border-radius: 999px; padding: 6px 14px; cursor: pointer; font: inherit; font-size: 13px; background: var(--panel); color: var(--muted); display: flex; align-items: center; gap: 7px; }
+  .voicetab .swatch { width: 9px; height: 9px; border-radius: 50%; }
+  .voicetab[aria-pressed="true"] { border-color: var(--vaccent); background: var(--vaccentbg); color: var(--ink); font-weight: 600; }
+  .voicesamples { display: flex; flex-direction: column; gap: 8px; }
+  .vsample { border: 1px solid var(--hair); border-radius: 10px; padding: 10px 30px 10px 12px; font-size: 13px; color: var(--ink); white-space: pre-wrap; position: relative; background: #FCFBF6; }
+  .vsample .del { position: absolute; top: 7px; right: 8px; border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 14px; line-height: 1; }
+  .vsample .del:hover { color: var(--kj); }
+  .vempty { color: var(--faint); font-size: 13px; padding: 8px 2px; }
+  /* pitch-idea rows: a checkbox (pick which ideas to draft from) + text + delete */
+  .videa { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--hair); border-radius: 10px; padding: 10px 30px 10px 12px; font-size: 13px; color: var(--ink); white-space: pre-wrap; position: relative; background: #FCFBF6; }
+  .videa input[type="checkbox"] { margin-top: 2px; flex: none; cursor: pointer; }
+  .videa .txt { flex: 1; }
+  .videa .del { position: absolute; top: 7px; right: 8px; border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 14px; line-height: 1; }
+  .videa .del:hover { color: var(--kj); }
+
+  /* template list */
+  .tpl-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .tpl-row { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--hair); border-radius: 10px; padding: 11px 14px; cursor: pointer; }
+  .tpl-row:hover { background: var(--hair2); }
+  .tpl-row.active { border-color: var(--you); background: var(--you-bg); }
+  .tpl-row .nm { font-weight: 550; font-size: 14px; }
+  .tpl-row .sj { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .btn.-danger { color: var(--kj); }
+  .btn.-danger:hover { background: var(--kj-bg); }
+
+  /* ---- editable design layer ---- */
+  .designbar { position: relative; padding: 18px 0 4px; }
+  #design-canvas { position: relative; height: 104px; }
+  .design-tools { position: absolute; top: 16px; right: 0; display: flex; gap: 8px; z-index: 5; }
+  #edit-design-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .metarow { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding: 4px 0 18px; }
+  .dcomp { position: absolute; top: 0; left: 0; user-select: none; }
+  .dcomp.image img, .dcomp.image svg { display: block; }
+  /* edit affordances only in edit mode */
+  .editing #design-canvas { background:
+      linear-gradient(var(--hair2) 1px, transparent 1px) 0 0/100% 16px,
+      linear-gradient(90deg, var(--hair2) 1px, transparent 1px) 0 0/16px 100%;
+    border: 1px dashed var(--hair); border-radius: 10px; }
+  .editing .dcomp { cursor: grab; outline: 1px dashed transparent; outline-offset: 3px; }
+  .editing .dcomp:hover { outline-color: var(--faint); }
+  .editing .dcomp.selected { outline: 1.5px solid var(--you); }
+  .editing .dcomp.dragging { cursor: grabbing; }
+
+  /* properties panel */
+  .design-panel { position: fixed; top: 84px; right: 22px; width: 260px; background: var(--panel);
+    border: 1px solid var(--hair); border-radius: 14px; box-shadow: var(--shadow-lg); z-index: 55; }
+  .design-panel[hidden] { display: none; }
+  .dp-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--hair); }
+  .dp-head span { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 14px; }
+  .dp-body { padding: 12px 14px; }
+  .dp-body .fld { display: block; font-size: 11px; letter-spacing: .05em; color: var(--faint); font-weight: 600; margin: 10px 0 5px; }
+  .dp-body .fld:first-child { margin-top: 0; }
+  .dp-body input, .dp-body select, .dp-body textarea { width: 100%; font: inherit; font-size: 13px; border: 1px solid var(--hair); border-radius: 8px; padding: 7px 9px; background: var(--panel); color: var(--ink); text-transform: none; }
+  .dp-body input[type=color] { padding: 2px; height: 32px; }
+  .dp-body input[type=range] { padding: 0; }
+  .dp-row { display: flex; gap: 8px; }
+  .dp-row > div { flex: 1; }
+  #dp-delete { margin-top: 14px; width: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="designbar">
+      <div id="design-canvas"></div>
+      <div class="design-tools">
+        <button class="btn design-add" id="design-add-text" hidden>+ Text</button>
+        <button class="btn design-add" id="design-add-image" hidden>+ Image</button>
+        <button class="btn" id="edit-design-btn" title="Edit the header design">Edit design</button>
+      </div>
+    </div>
+    <div class="metarow">
+      <div class="legend">
+        <span style="color:var(--faint)">Sending as</span>
+        <span class="id"><span class="swatch" style="background:var(--you)"></span> You</span>
+        <span class="id"><span class="swatch" style="background:var(--josh)"></span> Alex</span>
+        <span class="id"><span class="swatch" style="background:var(--kj)"></span> Sam</span>
+      </div>
+      <div class="pipeline">
+        <div class="stat"><div class="n" id="stat-total">6</div><div class="l">Apples</div></div>
+        <div class="stat"><div class="n" id="stat-sent">3</div><div class="l">Contacted</div></div>
+        <div class="stat -opened"><div class="n" id="stat-opened">2</div><div class="l">Replied</div></div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" placeholder="Search your orchard…" />
+      </div>
+      <button class="btn -primary" id="toggle-add">+ Add candidate</button>
+      <div class="spacer"></div>
+      <div class="tools">
+        <div class="bell">
+          <button class="btn" id="bell-btn" title="Opens" aria-label="Notifications">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 1 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            <span class="count" id="bell-count">0</span>
+          </button>
+          <div class="dropdown" id="bell-drop"></div>
+        </div>
+        <button class="btn" id="voices-btn">Voices</button>
+        <button class="btn" id="personalize-btn">Personalization</button>
+        <button class="btn" id="templates-btn">Templates</button>
+        <button class="btn" id="settings-btn" title="Settings" aria-label="Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="card">
+    <div class="addform hidden" id="addform">
+      <input class="inp" id="a-name" placeholder="Full name" />
+      <input class="inp" id="a-company" placeholder="Company (current or past)" />
+      <input class="inp" id="a-role" placeholder="Role" />
+      <input class="inp" id="a-email" placeholder="Email" />
+      <input class="inp" id="a-linkedin" placeholder="LinkedIn URL" />
+      <button class="btn -primary" id="a-save">Add</button>
+      <input class="inp" id="a-personalization" placeholder="Personalization — a custom line for this candidate, fills {{personalization}} (optional)" style="grid-column:1 / -1" />
+      <div style="grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap">
+        <select class="inp" id="a-stage" style="max-width:190px"></select>
+        <input class="inp" id="a-channel" placeholder="How did you reach out? e.g. LinkedIn InMail (optional)" style="flex:1;min-width:220px" />
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Candidate</th>
+          <th>LinkedIn</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">
+      <h3>Your orchard is empty</h3>
+      <p>Add someone to start tracking your outreach.</p>
+    </div>
+  </div>
+</main>
+
+<!-- compose drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <header>
+    <div class="who">
+      <div class="avatar" id="d-avatar">AL</div>
+      <div>
+        <h2 id="d-name">Ada Lovelace</h2>
+        <div class="sub" id="d-role">Anthropic · Research Engineer</div>
+      </div>
+    </div>
+    <button class="x" id="d-close" aria-label="Close">&times;</button>
+  </header>
+  <div class="body">
+    <div class="field" id="prior-sends-field" style="display:none">
+      <label>Previously sent</label>
+      <div id="prior-sends"></div>
+      <label class="thread-toggle" id="thread-toggle-wrap" style="display:none"><input type="checkbox" id="thread-toggle" /> <span>Follow up on the same thread (keeps it under your first email)</span></label>
+    </div>
+    <div class="field">
+      <label>From which inbox</label>
+      <div class="frompick" id="frompick">
+        <button class="fromopt" data-id="you" aria-pressed="true"><div class="nm"><span class="swatch" style="background:var(--you)"></span> You</div><div class="addr">you@example.com</div></button>
+        <button class="fromopt" data-id="josh" aria-pressed="false"><div class="nm"><span class="swatch" style="background:var(--josh)"></span> Alex</div><div class="addr">alex@example.com</div></button>
+        <button class="fromopt" data-id="kj" aria-pressed="false"><div class="nm"><span class="swatch" style="background:var(--kj)"></span> Sam</div><div class="addr">sam@example.com</div></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Template</label>
+      <select id="template">
+        <option value="intro">Cold intro — engineer</option>
+        <option value="followup">Follow-up — no reply</option>
+        <option value="founder">Founder note</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Subject</label>
+      <input class="inp" id="composesubject" placeholder="Subject line (tokens allowed)" />
+    </div>
+
+    <div class="field">
+      <label style="display:flex;align-items:center;justify-content:space-between">
+        <span>Message</span>
+        <button class="btn" id="d-draft" style="padding:5px 10px;font-size:12px">✨ Draft for me</button>
+      </label>
+      <textarea class="templatebody" id="templatebody"></textarea>
+      <div id="draft-note" style="font-size:11.5px;color:var(--muted);margin-top:7px;min-height:14px"></div>
+      <div style="font-size:11.5px;color:var(--faint);margin-top:5px">Click to insert a personalization token where your cursor is (subject or message). Highlight a word or phrase to turn it into a link.</div>
+      <div class="tokens" id="tokens" style="margin-top:7px">
+        <button class="token" data-tok="{{first_name}}">{{first_name}}</button>
+        <button class="token" data-tok="{{company}}">{{company}}</button>
+        <button class="token" data-tok="{{role}}">{{role}}</button>
+        <button class="token" data-tok="{{sender_name}}">{{sender_name}}</button>
+        <button class="token" data-tok="{{personalization}}">{{personalization}}</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Preview — as <span id="prev-to">the candidate</span> will see it</label>
+      <div class="preview">
+        <div class="head">From <b id="prev-from">You</b> · To <b id="prev-email">—</b></div>
+        <div class="subject" id="prev-subject"></div>
+        <div class="msg" id="prev-msg"></div>
+      </div>
+      <div class="warn" id="prev-warn"></div>
+    </div>
+  </div>
+  <div class="foot">
+    <span class="mono foot-note" id="foot-note" style="font-size:11.5px;color:var(--faint)">Opens are tracked automatically.</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn -ghost" id="d-copy" title="Copy the email to send by hand">Copy</button>
+      <button class="btn" id="d-reached" title="Log outreach you sent by hand">Log by hand</button>
+      <button class="btn -primary" id="d-send">Send email</button>
+    </div>
+  </div>
+</aside>
+
+<!-- settings modal -->
+<div class="modal-scrim" id="settings-scrim">
+  <div class="modal" role="dialog" aria-label="Settings">
+    <header><h2>Settings</h2><button class="x" data-close-settings aria-label="Close">&times;</button></header>
+    <div class="body">
+      <label class="fld" for="s-email">Your email address</label>
+      <input id="s-email" placeholder="you@example.com" />
+      <label class="fld" for="s-name">How you sign off</label>
+      <input id="s-name" placeholder="e.g. Alex" />
+      <div class="hint">Used for the {{sender_name}} token when you send from your own inbox.</div>
+      <label class="fld" for="s-link">Public tracking link</label>
+      <input id="s-link" placeholder="https://…/service/orchard/" />
+      <div class="hint">Open this page in your browser and copy the address. It lets open-tracking reach you from a recipient's email.</div>
+      <div class="warn" id="s-mailstatus" style="margin-top:4px"></div>
+      <label class="fld" for="s-contactout" style="margin-top:20px">ContactOut API token</label>
+      <input id="s-contactout" type="password" autocomplete="off" placeholder="Paste your ContactOut API token" />
+      <div class="hint">Lets <b>Find email</b> pull a candidate's email from their LinkedIn URL. Stored privately on your workspace and never shown again — paste a new one anytime to replace it.</div>
+      <div class="hint" id="s-contactout-status" style="margin-top:-8px"></div>
+    </div>
+    <div class="foot">
+      <button class="btn -ghost" id="s-check">Check mail connection</button>
+      <button class="btn -primary" id="s-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- templates modal -->
+<div class="modal-scrim" id="templates-scrim">
+  <div class="modal" role="dialog" aria-label="Templates">
+    <header><h2>Templates</h2><button class="x" data-close-templates aria-label="Close">&times;</button></header>
+    <div class="body">
+      <div class="tpl-list" id="tpl-list"></div>
+      <button class="btn" id="tpl-new">+ New template</button>
+      <div id="tpl-editor" style="display:none;margin-top:18px;border-top:1px solid var(--hair);padding-top:18px">
+        <label class="fld" for="tpl-name">Name</label>
+        <input id="tpl-name" placeholder="e.g. Cold intro — engineer" />
+        <label class="fld" for="tpl-subject">Subject</label>
+        <input id="tpl-subject" placeholder="Subject line (tokens allowed)" />
+        <label class="fld" for="tpl-body">Message</label>
+        <textarea id="tpl-body" style="min-height:180px;resize:vertical"></textarea>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:11px">Click a personalization token to insert it where your cursor is (subject or message). It's filled in per candidate when you send.</div>
+        <div class="tokens" style="margin-top:7px">
+          <button class="token" data-tok="{{first_name}}">{{first_name}}</button>
+          <button class="token" data-tok="{{company}}">{{company}}</button>
+          <button class="token" data-tok="{{role}}">{{role}}</button>
+          <button class="token" data-tok="{{sender_name}}">{{sender_name}}</button>
+          <button class="token" data-tok="{{personalization}}">{{personalization}}</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:9px">Tip: highlight a word or phrase to turn it into a link.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn -ghost -danger" id="tpl-delete" style="display:none;margin-right:auto">Delete</button>
+      <button class="btn -ghost" data-close-templates>Close</button>
+      <button class="btn -primary" id="tpl-save" style="display:none">Save template</button>
+    </div>
+  </div>
+</div>
+
+<!-- voices modal -->
+<div class="modal-scrim" id="voices-scrim">
+  <div class="modal" role="dialog" aria-label="Voices and pitch ideas">
+    <header><h2>Voices &amp; pitch ideas</h2><button class="x" data-close-voices aria-label="Close">&times;</button></header>
+    <div class="body">
+      <div class="hint" id="voice-hint">Paste samples of how each person writes — old emails, notes, anything. The more you add, the better Orchard can draft a template that sounds like them.</div>
+      <div class="voicetabs" id="voice-tabs"></div>
+      <div class="voicesamples" id="voice-samples"></div>
+      <textarea id="voice-newtext" placeholder="Paste a writing sample in this person's voice…" style="min-height:120px;resize:vertical;margin-top:12px"></textarea>
+      <!-- action row for a person's voice bucket -->
+      <div id="voice-actions" style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        <button class="btn" id="voice-add">+ Add sample</button>
+        <button class="btn -primary" id="voice-draft">Draft a template in this voice</button>
+        <span class="hint" id="voice-draftnote" style="margin:0"></span>
+      </div>
+      <!-- action row for the pitch-ideas bucket -->
+      <div id="idea-actions" style="display:none;margin-top:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn" id="idea-add">+ Add idea</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+          <label class="hint" for="idea-target" style="margin:0">Turn selected ideas into</label>
+          <select id="idea-target" style="max-width:280px"></select>
+          <button class="btn -primary" id="idea-draft">Draft</button>
+          <span class="hint" id="idea-draftnote" style="margin:0"></span>
+        </div>
+      </div>
+      <div id="voice-draftresult" style="display:none;margin-top:18px;border-top:1px solid var(--hair);padding-top:18px">
+        <label class="fld" for="voice-dname">Draft name</label>
+        <input id="voice-dname" />
+        <label class="fld" for="voice-dsubject">Subject</label>
+        <input id="voice-dsubject" />
+        <label class="fld" for="voice-dbody">Message</label>
+        <textarea id="voice-dbody" style="min-height:180px;resize:vertical"></textarea>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:9px">Tip: highlight a word or phrase to turn it into a link.</div>
+        <button class="btn -primary" id="voice-savetpl" style="margin-top:12px">Save as template</button>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn -ghost" data-close-voices>Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- personalization modal -->
+<div class="modal-scrim" id="personalize-scrim">
+  <div class="modal" role="dialog" aria-label="Personalization">
+    <header><h2>Personalization</h2><button class="x" data-close-personalize aria-label="Close">&times;</button></header>
+    <div class="body">
+      <div class="hint">Drop links (personal site, GitHub, a profile…) or paste notes about a candidate. Orchard reads them and writes one short, human line — why you're reaching out to them specifically — that you can drop straight into your outreach email.</div>
+      <label class="fld" for="pz-candidate">Attach to candidate (optional)</label>
+      <select id="pz-candidate"></select>
+      <label class="fld" for="pz-material">Links or notes</label>
+      <textarea id="pz-material" style="min-height:120px;resize:vertical" placeholder="https://github.com/… , personal site, or a few notes about them"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+        <button class="btn -primary" id="pz-generate">Generate</button>
+        <span class="hint" id="pz-note" style="margin:0"></span>
+      </div>
+      <div id="pz-result" style="display:none;margin-top:16px;border-top:1px solid var(--hair);padding-top:16px">
+        <label class="fld" for="pz-sentence">Line for your email</label>
+        <textarea id="pz-sentence" style="min-height:90px;resize:vertical"></textarea>
+        <button class="btn -primary" id="pz-save" style="margin-top:10px;display:none">Save to candidate</button>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn -ghost" data-close-personalize>Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- design component properties panel -->
+<div class="design-panel" id="design-panel" hidden>
+  <div class="dp-head"><span id="dp-title">Component</span><button class="x" id="dp-close" aria-label="Close">&times;</button></div>
+  <div class="dp-body">
+    <div id="dp-text-controls">
+      <label class="fld" for="dp-text">Text</label>
+      <textarea id="dp-text" rows="2"></textarea>
+      <label class="fld" for="dp-font">Font</label>
+      <select id="dp-font">
+        <option value="Space Grotesk">Space Grotesk</option>
+        <option value="Inter">Inter</option>
+        <option value="IBM Plex Mono">IBM Plex Mono</option>
+        <option value="Georgia">Georgia (serif)</option>
+      </select>
+      <div class="dp-row">
+        <div><label class="fld" for="dp-size">Size</label><input type="number" id="dp-size" min="8" max="120" /></div>
+        <div><label class="fld" for="dp-weight">Weight</label>
+          <select id="dp-weight"><option value="400">Normal</option><option value="600">Semibold</option><option value="700">Bold</option></select>
+        </div>
+        <div><label class="fld" for="dp-color">Color</label><input type="color" id="dp-color" /></div>
+      </div>
+    </div>
+    <div id="dp-image-controls">
+      <label class="fld" for="dp-width">Width</label>
+      <input type="range" id="dp-width" min="16" max="420" />
+      <label class="fld" for="dp-upload">Replace image</label>
+      <input type="file" id="dp-upload" accept="image/*" />
+    </div>
+    <button class="btn -ghost -danger" id="dp-delete">Delete component</button>
+  </div>
+</div>
+
+<!-- candidate message history modal -->
+<div class="modal-scrim" id="history-scrim">
+  <div class="modal" role="dialog" aria-label="Message history">
+    <header><h2 id="history-title">Message history</h2><button class="x" data-close-history aria-label="Close">&times;</button></header>
+    <div class="body">
+      <div id="history-list"></div>
+    </div>
+    <div class="foot">
+      <button class="btn -ghost" data-close-history>Close</button>
+      <button class="btn -primary" id="history-copy-all">Copy all messages</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="linkpop" id="linkpop"></div>
+
+<script>
+// UI-only colour identity per inbox; all other inbox data comes from the server.
+const INBOX_STYLE = {
+  you:  { color: "var(--you)",  bg: "var(--you-bg)" },
+  josh: { color: "var(--josh)", bg: "var(--josh-bg)" },
+  kj:   { color: "var(--kj)",   bg: "var(--kj-bg)" },
+};
+
+let candidates = [], templates = [], inboxes = [], inboxByKey = {}, templateById = {}, settings = {};
+let contactoutConfigured = false;
+let stages = [];  // [{key,label}] pipeline stages, from the server
+
+const $ = (s) => document.querySelector(s);
+const rowsEl = $("#rows");
+const initials = (n) => n.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase() || "?";
+const firstName = (n) => n.trim().split(/\s+/)[0] || n;
+const styleFor = (key) => INBOX_STYLE[key] || { color: "var(--hair)", bg: "var(--hair)" };
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+async function api(path, method = "GET", body) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.error || ("HTTP " + res.status));
+  }
+  return res.status === 204 ? {} : res.json();
+}
+function rel(iso) {
+  if (!iso) return "";
+  const mins = Math.round((Date.now() - new Date(iso)) / 6e4);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  return Math.round(hrs / 24) + "d ago";
+}
+function linkedinHref(url) {
+  if (!url) return "";
+  return /^https?:\/\//.test(url) ? url : "https://" + url.replace(/^\/+/, "");
+}
+// A short absolute stamp ("Aug 13, 2:34 PM") for inline display, and a full one
+// for hover tooltips. Both render in the browser's local timezone.
+function fmtStamp(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function fmtFull(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// ---- table ----
+// A dropdown to set the candidate's pipeline stage by hand.
+function stageSelect(c) {
+  const opts = stages.map(s => `<option value="${esc(s.key)}" ${s.key===c.stage?"selected":""}>${esc(s.label)}</option>`).join("");
+  return `<select class="stagesel" data-act="stage" data-id="${esc(c.id)}">${opts}</select>`;
+}
+// The muted line under the stage: channel, who it went out as, the date, and any open.
+function stageSub(c) {
+  const bits = [];
+  if (c.channel) bits.push(esc(c.channel));
+  if (c.from_inbox && inboxByKey[c.from_inbox]) bits.push("via " + esc(inboxByKey[c.from_inbox].name));
+  if (c.sent_at) bits.push(esc(fmtStamp(c.sent_at)));
+  if (c.opened_at) bits.push("opened " + esc(fmtStamp(c.opened_at)) + (c.open_count > 1 ? ` · ${c.open_count}×` : ""));
+  if (c.replied_at) bits.push("replied " + esc(fmtStamp(c.replied_at)));
+  if (!bits.length) return "";
+  return `<div class="fromchip" style="margin-top:5px" title="${esc(fmtFull(c.replied_at || c.opened_at || c.sent_at))}">${bits.join(" · ")}</div>`;
+}
+function trackDots(c) {
+  const st = c.stage;
+  const on2 = st === "reached_out" || st === "replied", on3 = st === "replied";
+  // Colour the filled track by the sending inbox (who it went out as), so Josh's
+  // sends read gold and yours green. When there's no inbox (reached out off-platform,
+  // e.g. LinkedIn), fall back to a neutral stage colour.
+  const color = c.from_inbox ? styleFor(c.from_inbox).color : (st === "replied" ? "var(--opened)" : "var(--sent)");
+  const via = c.from_inbox && inboxByKey[c.from_inbox] ? ` (sent as ${inboxByKey[c.from_inbox].name})` : "";
+  const dot = (on) => `background:${on?color:'var(--panel)'};border-color:${on?'transparent':'var(--hair)'}`;
+  return `<span class="track" title="Not contacted → Reached out → Replied${via}">
+    <span class="node n1" style="${dot(true)}"></span>
+    <span class="seg" style="background:${on2?color:'var(--hair)'}"></span>
+    <span class="node n2" style="${dot(on2)}"></span>
+    <span class="seg" style="background:${on3?color:'var(--hair)'}"></span>
+    <span class="node n3" style="${dot(on3)}"></span>
+  </span>`;
+}
+function subline(c) {
+  return [c.company, c.role].filter(Boolean).join(" · ") || "No company yet";
+}
+
+function render() {
+  const q = $("#search").value.toLowerCase();
+  const list = candidates.filter(c => !q || c.name.toLowerCase().includes(q) || (c.company||"").toLowerCase().includes(q));
+  rowsEl.innerHTML = list.map(c => `
+    <tr data-id="${esc(c.id)}">
+      <td>
+        <div class="person">
+          <div class="avatar" style="background:${c.from_inbox?styleFor(c.from_inbox).bg:'var(--hair)'}">${esc(initials(c.name))}</div>
+          <div><button class="name namebtn" data-act="history" data-id="${esc(c.id)}" title="View message history">${esc(c.name)}</button><div class="role">${esc(subline(c))}</div></div>
+        </div>
+      </td>
+      <td class="linkcell">${c.linkedin ? `<a href="${esc(linkedinHref(c.linkedin))}" target="_blank" rel="noopener">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-1 1.83-2.05 3.75-2.05 4 0 4.4 2.5 4.4 5.8V21h-4v-5c0-1.2 0-2.7-1.7-2.7s-1.95 1.3-1.95 2.6V21H9z"/></svg>
+        Profile</a>` : `<span class="email" style="opacity:.6">—</span>`}</td>
+      <td class="email">${c.email
+        ? esc(c.email)
+        : (c.linkedin
+            ? `<button class="btn" style="padding:5px 10px;font-size:12.5px" data-act="find-email" data-id="${esc(c.id)}">Find email</button>`
+            : '<span style="opacity:.6">—</span>')}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:12px">
+          ${trackDots(c)}
+          <div>${stageSelect(c)}${stageSub(c)}</div>
+        </div>
+      </td>
+      <td class="rowactions">
+        <button class="btn ${c.stage==='not_contacted'?'-primary':''}" data-act="compose" data-id="${esc(c.id)}">${c.stage==='not_contacted'?'Reach out':'Follow up'}</button>
+        <button class="iconbtn" data-act="edit" data-id="${esc(c.id)}" title="Edit">✎</button>
+        <button class="iconbtn -danger" data-act="delete" data-id="${esc(c.id)}" title="Remove">✕</button>
+      </td>
+    </tr>`).join("");
+  $("#empty").style.display = list.length ? "none" : "block";
+  $("#stat-total").textContent = candidates.length;
+  $("#stat-sent").textContent = candidates.filter(c=>c.stage==="reached_out"||c.stage==="replied").length;
+  $("#stat-opened").textContent = candidates.filter(c=>c.stage==="replied").length;
+}
+
+// ---- add / edit candidate ----
+let editingId = null;
+function fillStageSelect(selected) {
+  $("#a-stage").innerHTML = stages.map(s => `<option value="${esc(s.key)}" ${s.key===selected?"selected":""}>${esc(s.label)}</option>`).join("");
+}
+function fillForm(c) {
+  $("#a-name").value = c.name || ""; $("#a-company").value = c.company || "";
+  $("#a-role").value = c.role || ""; $("#a-email").value = c.email || "";
+  $("#a-linkedin").value = c.linkedin || ""; $("#a-personalization").value = c.personalization || "";
+  $("#a-channel").value = c.channel || ""; fillStageSelect(c.stage || "not_contacted");
+}
+function clearForm() {
+  ["a-name","a-company","a-role","a-email","a-linkedin","a-personalization","a-channel"].forEach(id=>$("#"+id).value="");
+  fillStageSelect("not_contacted");
+}
+function openAddForm(edit) {
+  editingId = edit ? edit.id : null;
+  $("#a-save").textContent = edit ? "Save" : "Add";
+  edit ? fillForm(edit) : clearForm();
+  $("#addform").classList.remove("hidden");
+  $("#a-name").focus();
+}
+$("#toggle-add").onclick = () => {
+  const hidden = $("#addform").classList.contains("hidden");
+  if (hidden) openAddForm(null); else $("#addform").classList.add("hidden");
+};
+$("#a-save").onclick = async () => {
+  const payload = {
+    name: $("#a-name").value.trim(), company: $("#a-company").value.trim(),
+    role: $("#a-role").value.trim(), email: $("#a-email").value.trim(),
+    linkedin: $("#a-linkedin").value.trim(), personalization: $("#a-personalization").value.trim(),
+    stage: $("#a-stage").value, channel: $("#a-channel").value.trim(),
+  };
+  if (!payload.name) { $("#a-name").focus(); return; }
+  try {
+    if (editingId) {
+      const updated = await api(`/api/candidates/${editingId}`, "PATCH", payload);
+      candidates = candidates.map(c => c.id === editingId ? updated : c);
+    } else {
+      candidates.unshift(await api("/api/candidates", "POST", payload));
+    }
+    clearForm(); editingId = null; $("#addform").classList.add("hidden"); render();
+  } catch (e) { toast("Couldn't save", e.message, "var(--kj)"); }
+};
+
+// ---- compose drawer ----
+let current = null, fromId = "you", templateId = null;
+// templateId "" means "write from scratch" (blank); otherwise it's a template id.
+function currentTemplate() { return templateId ? (templateById[templateId] || { subject: "", body: "" }) : { subject: "", body: "" }; }
+async function maybeAutoDraft(c) {
+  const ta = $("#templatebody"), subj = $("#composesubject"), note = $("#draft-note"), send = $("#d-send");
+  const followUp = !!(c.stage && c.stage !== "not_contacted");
+  ta.value = ""; ta.placeholder = "drafting in your voice…"; note.textContent = "✨ drafting in your voice…"; send.disabled = true;
+  try {
+    const d = await api(`/api/candidates/${c.id}/draft-email`, "POST", { inbox_key: fromId, follow_up: followUp });
+    if (!current || current.id !== c.id) return;   // user moved on
+    ta.value = d.body;
+    if (!threadOn() && d.subject) subj.value = d.subject;
+    note.textContent = "draft ready — edit and send, or pick a template above.";
+  } catch (e) {
+    if (current && current.id === c.id) note.textContent = "couldn't auto-draft — write your own, or pick a template.";
+  } finally {
+    ta.placeholder = ""; send.disabled = false; renderPreview();
+  }
+}
+function openDrawer(c) {
+  current = c;
+  fromId = c.from_inbox || "you";
+  templateId = "";  // default to a fresh AI draft rather than a template
+  $("#d-avatar").textContent = initials(c.name);
+  $("#d-name").textContent = c.name;
+  $("#d-role").textContent = subline(c);
+  $("#prev-to").textContent = firstName(c.name);
+  $("#prev-email").textContent = c.email || "no email yet";
+  document.querySelectorAll(".fromopt").forEach(b => b.setAttribute("aria-pressed", b.dataset.id===fromId));
+  $("#template").value = "";
+  $("#templatebody").value = "";
+  $("#composesubject").value = "";
+  $("#draft-note").textContent = "";
+  renderPriorSends(c);
+  applyAccent(); renderPreview();
+  $("#scrim").classList.add("open"); $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
+  maybeAutoDraft(c);
+}
+function closeDrawer() {
+  $("#scrim").classList.remove("open"); $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden","true");
+}
+function reSubject(s) { return (s || "").trim().slice(0,3).toLowerCase() === "re:" ? s.trim() : "Re: " + (s || "").trim(); }
+function latestSend(c) { return (c.sends && c.sends.length) ? c.sends[c.sends.length - 1] : null; }
+function renderPriorSends(c) {
+  const field = $("#prior-sends-field"), list = $("#prior-sends"), toggleWrap = $("#thread-toggle-wrap");
+  const sends = (c.sends || []).slice().reverse();
+  if (sends.length) {
+    list.innerHTML = sends.map(s => {
+      const i = inboxByKey[s.inbox_key]; const via = i ? i.name : s.inbox_key;
+      return `<div class="priorsend"><div class="ps-sub">${esc(s.subject || "(no subject)")}</div>
+        <div class="ps-meta">via ${esc(via)} · ${esc(fmtStamp(s.sent_at))}</div>
+        <div class="ps-body">${esc(s.body || "")}</div></div>`;
+    }).join("");
+    field.style.display = "block";
+  } else if (c.sent_at) {
+    // older sends predate the history; show what we know (can't thread these).
+    const i = c.from_inbox ? inboxByKey[c.from_inbox] : null;
+    list.innerHTML = `<div class="priorsend"><div class="ps-meta">Sent via ${esc(i ? i.name : (c.from_inbox||"you"))} · ${esc(fmtStamp(c.sent_at))} (before send history was kept)</div></div>`;
+    field.style.display = "block";
+  } else {
+    field.style.display = "none";
+  }
+  // Offer threading only when the latest send has a thread to reply into.
+  const ls = latestSend(c);
+  if (ls && ls.thread_id) {
+    toggleWrap.style.display = "flex";
+    $("#thread-toggle").checked = true;   // default to threading a follow-up
+  } else {
+    toggleWrap.style.display = "none";
+    $("#thread-toggle").checked = false;
+  }
+  applyThreadMode();
+}
+function threadOn() { return $("#thread-toggle-wrap").style.display !== "none" && $("#thread-toggle").checked; }
+function applyThreadMode() {
+  const on = threadOn(), ls = on ? latestSend(current) : null;
+  if (on && ls) {
+    fromId = ls.inbox_key;                                   // a reply goes from the original address
+    document.querySelectorAll(".fromopt").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === fromId));
+    $("#composesubject").value = reSubject(ls.subject);
+  }
+  // Lock the inbox + subject while threading (a reply can't change either).
+  $("#frompick").style.pointerEvents = on ? "none" : "";
+  $("#frompick").style.opacity = on ? ".55" : "";
+  $("#composesubject").readOnly = on;
+  applyAccent(); renderPreview();
+}
+function applyAccent() {
+  const st = styleFor(fromId), i = inboxByKey[fromId] || { name: fromId, address: "" };
+  $("#drawer").style.setProperty("--accent", st.color);
+  $("#drawer").style.setProperty("--accent-bg", st.bg);
+  $("#d-avatar").style.background = st.bg;
+  $("#prev-from").textContent = i.address ? `${i.name} <${i.address}>` : `${i.name} (set your address)`;
+}
+function tokenMap() {
+  const i = inboxByKey[fromId] || { sender_name: "" };
+  const parts = current.name.trim().split(/\s+/);
+  return {
+    first_name: parts[0] || current.name, last_name: parts.length>1 ? parts[parts.length-1] : "",
+    full_name: current.name, company: current.company || "", role: current.role || "",
+    sender_name: i.sender_name || "", personalization: current.personalization || "",
+  };
+}
+function fill(text, values, highlight) {
+  return esc(text).replace(/\{\{(\w+)\}\}/g, (m, key) => {
+    if (!(key in values)) return m;                       // unknown token: leave visible
+    const v = esc(values[key]);
+    return highlight ? `<mark>${v || "&nbsp;"}</mark>` : v;
+  });
+}
+// Turn [text](url) markdown links into anchors. Runs on already-escaped HTML, so
+// the url here is escaped too; only http/https/mailto are linked (mirrors the
+// backend), anything else is left as literal text.
+function linkify(escapedHtml) {
+  return escapedHtml.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, text, url) => {
+    const bare = url.replace(/&amp;/g, "&");
+    if (!/^(https?:\/\/|mailto:)/i.test(bare)) return m;
+    return `<a href="${url}" target="_blank" rel="noopener">${text}</a>`;
+  });
+}
+function renderPreview() {
+  const values = tokenMap();
+  const subject = $("#composesubject").value;
+  $("#prev-subject").innerHTML = fill(subject, values, false);
+  $("#prev-msg").innerHTML = linkify(fill($("#templatebody").value, values, true));
+  // Warn about tokens that resolve to nothing (unknown, or a blank candidate field).
+  const text = subject + "\n" + $("#templatebody").value;
+  const missing = [...text.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1]).filter(k => !values[k]);
+  const uniq = [...new Set(missing)];
+  const warn = $("#prev-warn");
+  if (uniq.length) { warn.textContent = "Nothing to fill in for: " + uniq.map(k=>"{{"+k+"}}").join(", "); warn.classList.add("show"); }
+  else warn.classList.remove("show");
+}
+function plainEmail() {
+  const values = tokenMap();
+  const sub = $("#composesubject").value.replace(/\{\{(\w+)\}\}/g, (m,k)=> k in values ? values[k] : m);
+  const body = $("#templatebody").value.replace(/\{\{(\w+)\}\}/g, (m,k)=> k in values ? values[k] : m);
+  return { sub, body };
+}
+document.querySelectorAll(".fromopt").forEach(b => b.onclick = () => {
+  fromId = b.dataset.id;
+  document.querySelectorAll(".fromopt").forEach(x => x.setAttribute("aria-pressed", x===b));
+  applyAccent(); renderPreview();
+});
+$("#template").onchange = (e) => { templateId = e.target.value; $("#templatebody").value = currentTemplate().body; if (!threadOn()) $("#composesubject").value = currentTemplate().subject; $("#draft-note").textContent = ""; renderPreview(); };
+$("#d-draft").onclick = () => { if (current) { templateId = ""; $("#template").value = ""; maybeAutoDraft(current); } };
+$("#templatebody").oninput = renderPreview;
+$("#composesubject").oninput = renderPreview;
+$("#thread-toggle").onchange = applyThreadMode;
+// Insert a token at the cursor of a text field (input or textarea).
+function insertTokenInto(el, tok) {
+  const s = el.selectionStart ?? el.value.length, e = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0, s) + tok + el.value.slice(e);
+  el.focus(); el.selectionStart = el.selectionEnd = s + tok.length;
+}
+// Track which compose field the cursor was last in, so a token drops into the
+// subject or the message — whichever you were editing.
+let composeTokenTarget = null;
+["composesubject","templatebody"].forEach(id => $("#"+id).addEventListener("focus", () => composeTokenTarget = $("#"+id)));
+$("#tokens").onclick = (e) => {
+  if (!e.target.classList.contains("token")) return;
+  insertTokenInto(composeTokenTarget || $("#templatebody"), e.target.dataset.tok);
+  renderPreview();
+};
+$("#d-close").onclick = closeDrawer; $("#scrim").onclick = closeDrawer;
+
+$("#d-copy").onclick = async () => {
+  const { sub, body } = plainEmail();
+  try { await navigator.clipboard.writeText(`Subject: ${sub}\n\n${body}`); toast("Copied to clipboard", "Paste it into your email client", "var(--you)"); }
+  catch (e) { toast("Couldn't copy", "Your browser blocked clipboard access", "var(--kj)"); }
+};
+$("#d-reached").onclick = async () => {
+  try {
+    const updated = await api(`/api/candidates/${current.id}/reached-out`, "POST", { inbox_key: fromId, template_id: templateId });
+    candidates = candidates.map(c => c.id === current.id ? updated : c);
+    render(); closeDrawer();
+    const i = inboxByKey[fromId] || { name: fromId, address: "" };
+    toast(`Logged outreach to ${firstName(updated.name)}`, `Via ${i.name}${i.address ? " · "+i.address : ""}`, styleFor(fromId).color, "check");
+  } catch (e) { toast("Couldn't save", e.message, "var(--kj)"); }
+};
+$("#d-send").onclick = async () => {
+  const btn = $("#d-send"); btn.disabled = true; const label = btn.textContent; btn.textContent = "Sending…";
+  try {
+    const res = await api(`/api/candidates/${current.id}/send`, "POST", { inbox_key: fromId, template_id: templateId, body: $("#templatebody").value, subject: $("#composesubject").value, in_thread: threadOn() });
+    candidates = candidates.map(c => c.id === current.id ? res.candidate : c);
+    render(); closeDrawer();
+    const i = inboxByKey[fromId] || { name: fromId, address: "" };
+    toast(`Sent to ${firstName(res.candidate.name)}`, `From ${i.name} · ${i.address}`, styleFor(fromId).color, "check");
+  } catch (e) {
+    // Offline / precondition: keep the drawer open so they can Copy and log by hand.
+    toast("Couldn't send", e.message, "var(--kj)");
+  } finally { btn.disabled = false; btn.textContent = label; }
+};
+
+// ---- toasts ----
+function toast(title, meta, color, icon) {
+  const el = document.createElement("div"); el.className = "toast";
+  // Opens show the eyes emoji with no background; other toasts keep the coloured check badge.
+  const badge = icon === "eye"
+    ? `<div class="emojibadge">👀</div>`
+    : `<div class="eye" style="background:${color}"><span style="color:#fff;font-weight:700">✓</span></div>`;
+  el.innerHTML = `${badge}<div class="t"><b>${esc(title)}</b><div class="m">${esc(meta)}</div></div>`;
+  $("#toasts").appendChild(el);
+  requestAnimationFrame(() => el.classList.add("show"));
+  setTimeout(() => { el.classList.remove("show"); setTimeout(()=>el.remove(), 250); }, 4600);
+}
+
+// ---- events ----
+rowsEl.onclick = async (e) => {
+  const btn = e.target.closest("[data-act]"); if (!btn) return;
+  const c = candidates.find(x => x.id == btn.dataset.id); if (!c) return;
+  if (btn.dataset.act === "compose") openDrawer(c);
+  else if (btn.dataset.act === "history") openHistory(c);
+  else if (btn.dataset.act === "edit") openAddForm(c);
+  else if (btn.dataset.act === "find-email") {
+    btn.disabled = true; const label = btn.textContent; btn.textContent = "Finding…";
+    try {
+      const res = await api(`/api/candidates/${c.id}/find-email`, "POST");
+      candidates = candidates.map(x => x.id === c.id ? res.candidate : x);
+      render();
+      if (res.applied) toast(`Found ${firstName(c.name)}'s email`, res.applied, "var(--you)", "check");
+      else if (res.emails.length) toast(`Found an email for ${firstName(c.name)}`, res.emails.join(", "), "var(--you)", "check");
+      else toast("No email found", `ContactOut has no email for ${firstName(c.name)} yet`, "var(--sent)");
+    } catch (err) {
+      btn.disabled = false; btn.textContent = label;
+      toast("Couldn't find an email", err.message, "var(--kj)");
+    }
+  }
+  else if (btn.dataset.act === "delete") {
+    if (!confirm(`Remove ${c.name} from your pipeline?`)) return;
+    try { await api(`/api/candidates/${c.id}`, "DELETE"); candidates = candidates.filter(x => x.id !== c.id); render(); }
+    catch (err) { toast("Couldn't remove", err.message, "var(--kj)"); }
+  }
+};
+// Manually setting a candidate's pipeline stage from the row dropdown.
+rowsEl.addEventListener("change", async (e) => {
+  const sel = e.target.closest("select[data-act='stage']"); if (!sel) return;
+  const c = candidates.find(x => x.id == sel.dataset.id); if (!c) return;
+  const stage = sel.value;
+  try {
+    const updated = await api(`/api/candidates/${c.id}`, "PATCH", { stage });
+    candidates = candidates.map(x => x.id === c.id ? updated : x); render();
+  } catch (err) { toast("Couldn't update the stage", err.message, "var(--kj)"); }
+});
+$("#search").oninput = render;
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeDrawer(); closeModal("#settings-scrim"); closeModal("#templates-scrim"); closeModal("#voices-scrim"); closeModal("#personalize-scrim"); closeModal("#history-scrim"); }
+});
+
+// ---- settings ----
+function openModal(id) { $(id).classList.add("open"); }
+function closeModal(id) { $(id).classList.remove("open"); }
+function renderSettingsForm() {
+  $("#s-email").value = settings.own_email || "";
+  $("#s-name").value = settings.own_sender_name || "";
+  $("#s-link").value = settings.public_base_url || "";
+  $("#s-contactout").value = "";
+  const st = $("#s-contactout-status");
+  st.textContent = contactoutConfigured ? "✓ ContactOut connected." : "Not connected — paste a token to enable Find email.";
+  st.style.color = contactoutConfigured ? "var(--opened)" : "var(--muted)";
+}
+$("#settings-btn").onclick = () => { renderSettingsForm(); $("#s-mailstatus").classList.remove("show"); openModal("#settings-scrim"); };
+document.querySelectorAll("[data-close-settings]").forEach(b => b.onclick = () => closeModal("#settings-scrim"));
+$("#settings-scrim").onclick = (e) => { if (e.target.id === "settings-scrim") closeModal("#settings-scrim"); };
+$("#s-save").onclick = async () => {
+  try {
+    settings = await api("/api/settings", "POST", {
+      own_email: $("#s-email").value.trim(), own_sender_name: $("#s-name").value.trim(),
+      public_base_url: $("#s-link").value.trim(),
+    });
+    // Save the ContactOut token only when a new one was typed (the field starts blank).
+    const token = $("#s-contactout").value.trim();
+    if (token) { const r = await api("/api/contactout-token", "POST", { token }); contactoutConfigured = r.configured; }
+    // Refresh the "you" inbox address everywhere it shows.
+    const data = await api("/api/bootstrap"); inboxes = data.inboxes; hydrateInboxes();
+    closeModal("#settings-scrim"); toast("Settings saved", "", "var(--you)", "check");
+  } catch (e) { toast("Couldn't save settings", e.message, "var(--kj)"); }
+};
+$("#s-check").onclick = async () => {
+  const box = $("#s-mailstatus"); box.textContent = "Checking…"; box.classList.add("show");
+  try {
+    const st = await api("/api/mail-status");
+    if (!st.online) { box.textContent = "Mail connection is offline right now — sending will work once it's back."; return; }
+    const addrs = [$("#s-email").value, "alex@example.com", "sam@example.com"];
+    const ready = addrs.filter(a => a && st.sendable.includes(a));
+    const missing = addrs.filter(a => a && !st.sendable.includes(a));
+    box.style.color = missing.length ? "var(--sent)" : "var(--opened)";
+    box.style.background = missing.length ? "var(--sent-bg)" : "var(--opened-bg)";
+    box.textContent = `Connected as ${st.account_email}. Can send as: ${ready.join(", ") || "none"}.` +
+      (missing.length ? ` Not yet a verified sender: ${missing.join(", ")} — add them under "Send mail as" in Gmail.` : "");
+  } catch (e) { box.textContent = e.message; }
+};
+
+// ---- template editor ----
+let editingTemplateId = null;
+function renderTemplateList() {
+  $("#tpl-list").innerHTML = templates.map(t => `
+    <div class="tpl-row ${t.id===editingTemplateId?'active':''}" data-tpl="${esc(t.id)}">
+      <div><div class="nm">${esc(t.name)}</div><div class="sj">${esc(t.subject)}</div></div>
+    </div>`).join("") || `<div class="empty2">No templates yet.</div>`;
+}
+function showTemplateEditor(t) {
+  editingTemplateId = t ? t.id : null;
+  $("#tpl-name").value = t ? t.name : "";
+  $("#tpl-subject").value = t ? t.subject : "";
+  $("#tpl-body").value = t ? t.body : "";
+  $("#tpl-editor").style.display = "block";
+  $("#tpl-save").style.display = "inline-block";
+  $("#tpl-delete").style.display = t ? "inline-block" : "none";
+  renderTemplateList();
+}
+$("#templates-btn").onclick = () => {
+  editingTemplateId = null; $("#tpl-editor").style.display = "none";
+  $("#tpl-save").style.display = "none"; $("#tpl-delete").style.display = "none";
+  renderTemplateList(); openModal("#templates-scrim");
+};
+document.querySelectorAll("[data-close-templates]").forEach(b => b.onclick = () => closeModal("#templates-scrim"));
+$("#templates-scrim").onclick = (e) => { if (e.target.id === "templates-scrim") closeModal("#templates-scrim"); };
+$("#tpl-list").onclick = (e) => {
+  const row = e.target.closest("[data-tpl]"); if (!row) return;
+  showTemplateEditor(templateById[row.dataset.tpl]);
+};
+$("#tpl-new").onclick = () => showTemplateEditor(null);
+// Track which template-editor field the cursor was last in, so a token drops into
+// the subject or the message body — whichever you were editing.
+let tplTokenTarget = null;
+["tpl-subject","tpl-body"].forEach(id => $("#"+id).addEventListener("focus", () => tplTokenTarget = $("#"+id)));
+$("#tpl-editor").querySelector(".tokens").onclick = (e) => {
+  if (!e.target.classList.contains("token")) return;
+  insertTokenInto(tplTokenTarget || $("#tpl-body"), e.target.dataset.tok);
+};
+
+// Highlight-to-link: select a word or phrase in any message box and a floating
+// "Link" button appears; click it, paste a URL, press Enter, and the selection
+// becomes a markdown [text](url) link (rendered as a real <a> in the preview and
+// on send). Works in the compose drawer and the template + voice editors.
+// (An inline popover, since window.prompt is blocked in the sandboxed iframe.)
+(function initLinkPopover() {
+  const pop = $("#linkpop");
+  let target = null, range = null, anchor = null;
+
+  function hide() { pop.classList.remove("show"); pop.innerHTML = ""; target = range = anchor = null; }
+
+  function place() {
+    pop.classList.add("show");
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    const left = Math.min(Math.max(8, anchor.x - w / 2), window.innerWidth - w - 8);
+    let top = anchor.y - h - 8;
+    if (top < 8) top = anchor.y + 18;      // flip below the selection if there's no room above
+    pop.style.left = left + "px"; pop.style.top = top + "px";
+  }
+
+  function showButton() {
+    pop.innerHTML = '<button type="button" id="linkpop-add">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+      + '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/>'
+      + '<path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>Link</button>';
+    place();
+    // preventDefault keeps the textarea selection highlighted when clicking the button
+    $("#linkpop-add").onmousedown = (e) => e.preventDefault();
+    $("#linkpop-add").onclick = showInput;
+  }
+
+  function showInput() {
+    pop.innerHTML = '<input id="linkpop-url" placeholder="Paste link, press Enter" />';
+    place();
+    const inp = $("#linkpop-url");
+    inp.focus();
+    inp.onkeydown = (e) => {
+      if (e.key === "Enter") { e.preventDefault(); apply(inp.value); }
+      else if (e.key === "Escape") { e.preventDefault(); hide(); }
+    };
+  }
+
+  function apply(url) {
+    url = (url || "").trim();
+    const ta = target, r = range;
+    if (url && ta && r) {
+      if (!/^(https?:\/\/|mailto:)/i.test(url)) url = "https://" + url;
+      const text = ta.value.slice(r.start, r.end) || url;
+      const md = `[${text}](${url})`;
+      ta.value = ta.value.slice(0, r.start) + md + ta.value.slice(r.end);
+      ta.focus(); ta.selectionStart = ta.selectionEnd = r.start + md.length;
+      ta.dispatchEvent(new Event("input"));   // refresh the compose preview
+    }
+    hide();
+  }
+
+  function onSelect(ta, e) {
+    const s = ta.selectionStart, en = ta.selectionEnd;
+    if (s == null || s === en) { if (!pop.contains(document.activeElement)) hide(); return; }
+    target = ta; range = { start: s, end: en };
+    const rect = ta.getBoundingClientRect();
+    anchor = {
+      x: e && e.clientX ? e.clientX : rect.left + 48,
+      y: e && e.clientY ? e.clientY : rect.top + 22,
+    };
+    showButton();
+  }
+
+  ["templatebody", "tpl-body", "voice-dbody"].forEach((id) => {
+    const ta = document.getElementById(id);
+    if (!ta) return;
+    ta.addEventListener("mouseup", (e) => setTimeout(() => onSelect(ta, e), 0));
+    ta.addEventListener("keyup", (e) => { if (e.shiftKey) onSelect(ta, e); });
+  });
+
+  // Dismiss on a click outside the popover, or on scroll.
+  document.addEventListener("mousedown", (e) => {
+    if (pop.classList.contains("show") && !pop.contains(e.target)) hide();
+  }, true);
+  window.addEventListener("scroll", () => { if (pop.classList.contains("show")) hide(); }, true);
+})();
+$("#tpl-save").onclick = async () => {
+  const payload = { name: $("#tpl-name").value.trim(), subject: $("#tpl-subject").value, body: $("#tpl-body").value };
+  if (!payload.name) { $("#tpl-name").focus(); return; }
+  try {
+    const saved = editingTemplateId
+      ? await api(`/api/templates/${editingTemplateId}`, "PATCH", payload)
+      : await api("/api/templates", "POST", payload);
+    const data = await api("/api/bootstrap"); templates = data.templates; hydrateTemplates();
+    showTemplateEditor(saved);
+    toast("Template saved", esc(saved.name), "var(--you)", "check");
+  } catch (e) { toast("Couldn't save template", e.message, "var(--kj)"); }
+};
+$("#tpl-delete").onclick = async () => {
+  if (!editingTemplateId || !confirm("Delete this template?")) return;
+  try {
+    await api(`/api/templates/${editingTemplateId}`, "DELETE");
+    const data = await api("/api/bootstrap"); templates = data.templates; hydrateTemplates();
+    editingTemplateId = null; $("#tpl-editor").style.display = "none";
+    $("#tpl-save").style.display = "none"; $("#tpl-delete").style.display = "none";
+    renderTemplateList(); toast("Template deleted", "", "var(--muted)", "check");
+  } catch (e) { toast("Couldn't delete", e.message, "var(--kj)"); }
+};
+
+// ---- voices & pitch ideas ----
+// The modal has two kinds of bucket: one per person (writing samples) and one
+// shared "pitch ideas" bucket, selected by the sentinel key below.
+const IDEAS_KEY = "__ideas__";
+let voicesData = { voices: {}, inboxes: [], ideas: [] }, activeVoiceKey = null;
+// When a draft revised an existing template, its id -- so "save" updates it in
+// place rather than creating a new one. Empty means the draft is a new template.
+let draftTargetTemplateId = "";
+function isIdeas() { return activeVoiceKey === IDEAS_KEY; }
+function voiceInboxes() {
+  return voicesData.inboxes.length ? voicesData.inboxes
+    : [{key:"you",name:"You"},{key:"josh",name:"Josh"},{key:"kj",name:"KJ"}];
+}
+function voiceName(key) { const i = voiceInboxes().find(x=>x.key===key); return i ? i.name : key; }
+function renderVoiceTabs() {
+  const voiceTabs = voiceInboxes().map(i => {
+    const st = styleFor(i.key);
+    return `<button class="voicetab" data-vkey="${esc(i.key)}" aria-pressed="${i.key===activeVoiceKey}" style="--vaccent:${st.color};--vaccentbg:${st.bg}"><span class="swatch" style="background:${st.color}"></span>${esc(i.name)}</button>`;
+  }).join("");
+  const ideaTab = `<button class="voicetab" data-vkey="${IDEAS_KEY}" aria-pressed="${isIdeas()}" style="--vaccent:#B8860B;--vaccentbg:#FBF6E9"><span class="swatch" style="background:#B8860B"></span>Pitch ideas</button>`;
+  $("#voice-tabs").innerHTML = voiceTabs + ideaTab;
+}
+function renderVoiceList() {
+  if (isIdeas()) {
+    const ideas = voicesData.ideas || [];
+    $("#voice-samples").innerHTML = ideas.length
+      ? ideas.map(i => `<label class="videa"><input type="checkbox" checked data-idea="${esc(i.id)}"><span class="txt">${esc(i.text)}</span><button class="del" data-idea="${esc(i.id)}" title="Remove">✕</button></label>`).join("")
+      : `<div class="vempty">No pitch ideas yet. Drop one below — a way to pitch your company you want to try.</div>`;
+    return;
+  }
+  const samples = voicesData.voices[activeVoiceKey] || [];
+  $("#voice-samples").innerHTML = samples.length
+    ? samples.map(s => `<div class="vsample">${esc(s.text)}<button class="del" data-vs="${esc(s.id)}" title="Remove">✕</button></div>`).join("")
+    : `<div class="vempty">No samples yet for ${esc(voiceName(activeVoiceKey))}. Paste one below.</div>`;
+}
+function renderIdeaTargets() {
+  $("#idea-target").innerHTML = '<option value="">a new template</option>'
+    + templates.map(t => `<option value="${esc(t.id)}">${esc(t.name)} (revise)</option>`).join("");
+}
+function selectVoice(key) {
+  activeVoiceKey = key;
+  draftTargetTemplateId = "";
+  renderVoiceTabs(); renderVoiceList();
+  $("#voice-draftresult").style.display = "none";
+  $("#voice-draftnote").textContent = "";
+  $("#idea-draftnote").textContent = "";
+  const ideas = isIdeas();
+  $("#voice-actions").style.display = ideas ? "none" : "flex";
+  $("#idea-actions").style.display = ideas ? "block" : "none";
+  $("#voice-newtext").placeholder = ideas
+    ? "Drop a new pitch idea — an angle or selling point for your company you want to try…"
+    : "Paste a writing sample in this person's voice…";
+  $("#voice-hint").textContent = ideas
+    ? "Drop ideas for how to pitch your company — angles, selling points, anything. Pick which to use, then turn them into a fresh template or work them into one you already have."
+    : "Paste samples of how each person writes — old emails, notes, anything. The more you add, the better Orchard can draft a template that sounds like them.";
+  if (!ideas) $("#voice-draft").textContent = `Draft a template in ${voiceName(key)}'s voice`;
+  else renderIdeaTargets();
+}
+async function refreshVoices() { voicesData = await api("/api/voices"); }
+async function openVoices() {
+  try {
+    await refreshVoices();
+    if (!activeVoiceKey || (activeVoiceKey !== IDEAS_KEY && !voiceInboxes().some(i=>i.key===activeVoiceKey))) activeVoiceKey = voiceInboxes()[0].key;
+    $("#voice-newtext").value = "";
+    selectVoice(activeVoiceKey);
+    openModal("#voices-scrim");
+  } catch (e) { toast("Couldn't load voices", e.message, "var(--kj)"); }
+}
+$("#voices-btn").onclick = openVoices;
+document.querySelectorAll("[data-close-voices]").forEach(b => b.onclick = () => closeModal("#voices-scrim"));
+$("#voices-scrim").onclick = (e) => { if (e.target.id === "voices-scrim") closeModal("#voices-scrim"); };
+$("#voice-tabs").onclick = (e) => { const b = e.target.closest("[data-vkey]"); if (b) selectVoice(b.dataset.vkey); };
+$("#voice-samples").onclick = async (e) => {
+  const del = e.target.closest(".del"); if (!del) return;
+  e.preventDefault();
+  try {
+    if (isIdeas()) await api(`/api/pitch-ideas/${del.dataset.idea}`, "DELETE");
+    else await api(`/api/voices/${activeVoiceKey}/${del.dataset.vs}`, "DELETE");
+    await refreshVoices(); renderVoiceList();
+  } catch (err) { toast("Couldn't remove that", err.message, "var(--kj)"); }
+};
+$("#voice-add").onclick = async () => {
+  const text = $("#voice-newtext").value.trim();
+  if (!text) { $("#voice-newtext").focus(); return; }
+  try { await api(`/api/voices/${activeVoiceKey}`, "POST", { text }); $("#voice-newtext").value = ""; await refreshVoices(); renderVoiceList(); }
+  catch (e) { toast("Couldn't add sample", e.message, "var(--kj)"); }
+};
+$("#idea-add").onclick = async () => {
+  const text = $("#voice-newtext").value.trim();
+  if (!text) { $("#voice-newtext").focus(); return; }
+  try { await api("/api/pitch-ideas", "POST", { text }); $("#voice-newtext").value = ""; await refreshVoices(); renderVoiceList(); }
+  catch (e) { toast("Couldn't add idea", e.message, "var(--kj)"); }
+};
+$("#voice-draft").onclick = async () => {
+  const btn = $("#voice-draft"); btn.disabled = true; const label = btn.textContent; btn.textContent = "Drafting…";
+  $("#voice-draftnote").textContent = `Writing in ${voiceName(activeVoiceKey)}'s voice — this takes a few seconds.`;
+  try {
+    const d = await api(`/api/voices/${activeVoiceKey}/draft`, "POST");
+    showDraft(d);
+    $("#voice-draftnote").textContent = "Draft ready — edit it, then save as a template.";
+  } catch (e) { $("#voice-draftnote").textContent = ""; toast("Couldn't draft a template", e.message, "var(--kj)"); }
+  finally { btn.disabled = false; btn.textContent = label; }
+};
+$("#idea-draft").onclick = async () => {
+  const ideas = voicesData.ideas || [];
+  const idea_ids = [...document.querySelectorAll('#voice-samples input[type=checkbox]:checked')].map(c => c.dataset.idea);
+  if (ideas.length && !idea_ids.length) { $("#idea-draftnote").textContent = "Tick at least one idea to use."; return; }
+  const template_id = $("#idea-target").value;
+  const btn = $("#idea-draft"); btn.disabled = true; const label = btn.textContent; btn.textContent = "Drafting…";
+  $("#idea-draftnote").textContent = template_id ? "Working your ideas into that template…" : "Turning your ideas into a template…";
+  try {
+    const d = await api("/api/pitch-ideas/draft", "POST", { idea_ids, template_id });
+    showDraft(d);
+    $("#idea-draftnote").textContent = d.target_template_id ? "Draft ready — edit it, then update the template." : "Draft ready — edit it, then save as a template.";
+  } catch (e) { $("#idea-draftnote").textContent = ""; toast("Couldn't draft from ideas", e.message, "var(--kj)"); }
+  finally { btn.disabled = false; btn.textContent = label; }
+};
+function showDraft(d) {
+  draftTargetTemplateId = d.target_template_id || "";
+  $("#voice-dname").value = d.name; $("#voice-dsubject").value = d.subject; $("#voice-dbody").value = d.body;
+  $("#voice-savetpl").textContent = draftTargetTemplateId ? "Update template" : "Save as template";
+  $("#voice-draftresult").style.display = "block";
+}
+$("#voice-savetpl").onclick = async () => {
+  const payload = { name: $("#voice-dname").value.trim(), subject: $("#voice-dsubject").value, body: $("#voice-dbody").value };
+  if (!payload.name) { $("#voice-dname").focus(); return; }
+  try {
+    if (draftTargetTemplateId) await api(`/api/templates/${draftTargetTemplateId}`, "PATCH", payload);
+    else await api("/api/templates", "POST", payload);
+    const data = await api("/api/bootstrap"); templates = data.templates; hydrateTemplates();
+    if (isIdeas()) renderIdeaTargets();
+    $("#voice-draftresult").style.display = "none";
+    toast(draftTargetTemplateId ? "Template updated" : "Saved as template", payload.name, "var(--you)", "check");
+  } catch (e) { toast("Couldn't save template", e.message, "var(--kj)"); }
+};
+
+// ---- personalization ----
+function pzSaveVisible() {
+  // Save is available whenever there's a result to save; if no candidate is picked
+  // yet, the save handler nudges you to choose one.
+  $("#pz-save").style.display = ($("#pz-result").style.display !== "none") ? "inline-block" : "none";
+}
+$("#personalize-btn").onclick = () => {
+  $("#pz-candidate").innerHTML = ['<option value="">— none —</option>']
+    .concat(candidates.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`)).join("");
+  $("#pz-material").value = ""; $("#pz-result").style.display = "none"; $("#pz-note").textContent = "";
+  openModal("#personalize-scrim");
+};
+document.querySelectorAll("[data-close-personalize]").forEach(b => b.onclick = () => closeModal("#personalize-scrim"));
+$("#personalize-scrim").onclick = (e) => { if (e.target.id === "personalize-scrim") closeModal("#personalize-scrim"); };
+$("#pz-candidate").onchange = pzSaveVisible;
+$("#pz-generate").onclick = async () => {
+  const material = $("#pz-material").value.trim();
+  if (!material) { $("#pz-material").focus(); return; }
+  const btn = $("#pz-generate"); btn.disabled = true; const label = btn.textContent; btn.textContent = "Reading…";
+  $("#pz-note").textContent = "Reading the links and thinking — this can take up to a minute.";
+  try {
+    const res = await api("/api/personalize", "POST", { material });
+    $("#pz-sentence").value = res.sentence;
+    $("#pz-result").style.display = "block";
+    pzSaveVisible();
+    $("#pz-note").textContent = "Suggestion ready — edit it, then save it to a candidate.";
+  } catch (e) { $("#pz-note").textContent = ""; toast("Couldn't generate", e.message, "var(--kj)"); }
+  finally { btn.disabled = false; btn.textContent = label; }
+};
+$("#pz-save").onclick = async () => {
+  const id = $("#pz-candidate").value, text = $("#pz-sentence").value.trim();
+  if (!id) { toast("Pick a candidate", "Choose who to save this line to, at the top of this box.", "var(--sent)"); $("#pz-candidate").focus(); return; }
+  if (!text) { $("#pz-sentence").focus(); return; }
+  try {
+    const updated = await api(`/api/candidates/${id}`, "PATCH", { personalization: text });
+    candidates = candidates.map(c => c.id === id ? updated : c); render();
+    toast(`Saved to ${firstName(updated.name)}`, "Fills {{personalization}} in your emails", "var(--you)", "check");
+    closeModal("#personalize-scrim");
+  } catch (e) { toast("Couldn't save", e.message, "var(--kj)"); }
+};
+
+// ---- message history ----
+let historyCandidate = null;
+function oneMessageText(s) {
+  const i = inboxByKey[s.inbox_key]; const via = i ? i.name : (s.inbox_key || "you");
+  const src = s.source === "gmail" ? " (sent from your email)" : "";
+  return `From: ${via}${src}\nDate: ${fmtFull(s.sent_at)}\nSubject: ${s.subject || "(no subject)"}\n\n${s.body || ""}`;
+}
+function allMessagesText(c) {
+  return (c.sends || []).map(oneMessageText).join("\n\n" + "-".repeat(48) + "\n\n");
+}
+function openHistory(c) {
+  historyCandidate = c;
+  const sends = c.sends || [];
+  $("#history-title").textContent = `Messages to ${c.name}`;
+  const list = $("#history-list");
+  if (sends.length) {
+    list.innerHTML = sends.map((s, idx) => {
+      const i = inboxByKey[s.inbox_key]; const via = i ? i.name : (s.inbox_key || "you");
+      const src = s.source === "gmail" ? " · from your email" : "";
+      return `<div class="histmsg">
+        <div class="hm-head"><span class="hm-sub">${esc(s.subject || "(no subject)")}</span>
+          <button class="btn" data-copy-msg="${idx}" style="padding:4px 9px;font-size:12px">Copy</button></div>
+        <div class="hm-meta">via ${esc(via)} · ${esc(fmtFull(s.sent_at))}${src}</div>
+        <div class="hm-body">${esc(s.body || "")}</div>
+      </div>`;
+    }).join("");
+  } else {
+    list.innerHTML = c.sent_at
+      ? `<div class="empty2" style="padding:16px">An earlier message was sent (before message history was kept), so its text isn't stored.</div>`
+      : `<div class="empty2" style="padding:16px">No messages sent to ${esc(c.name)} yet.</div>`;
+  }
+  $("#history-copy-all").style.display = sends.length ? "inline-block" : "none";
+  openModal("#history-scrim");
+}
+async function copyText(text, label) {
+  try { await navigator.clipboard.writeText(text); toast(label, "", "var(--you)", "check"); }
+  catch (e) { toast("Couldn't copy", "Your browser blocked clipboard access", "var(--kj)"); }
+}
+$("#history-copy-all").onclick = () => { if (historyCandidate) copyText(allMessagesText(historyCandidate), "Copied all messages"); };
+$("#history-list").onclick = (e) => {
+  const btn = e.target.closest("[data-copy-msg]"); if (!btn || !historyCandidate) return;
+  const s = (historyCandidate.sends || [])[+btn.dataset.copyMsg]; if (s) copyText(oneMessageText(s), "Copied message");
+};
+document.querySelectorAll("[data-close-history]").forEach(b => b.onclick = () => closeModal("#history-scrim"));
+$("#history-scrim").onclick = (e) => { if (e.target.id === "history-scrim") closeModal("#history-scrim"); };
+
+// ---- notifications ----
+let seenNotificationIds = new Set(), notiPrimed = false;
+function renderBell(data) {
+  const count = $("#bell-count");
+  count.textContent = data.unseen; count.classList.toggle("show", data.unseen > 0);
+  $("#bell-drop").innerHTML = data.notifications.length
+    ? data.notifications.slice(0, 12).map(n => `
+      <div class="noti">
+        <div class="emojibadge">👀</div>
+        <div class="t"><b>${esc(n.candidate_name)}</b> ${n.open_count > 1 ? `re-opened your email (${n.open_count}×)` : "opened your email"}<div class="m">${esc(rel(n.opened_at))}</div></div>
+      </div>`).join("")
+    : `<div class="empty2">No opens yet.</div>`;
+}
+async function pollNotifications() {
+  try {
+    const data = await api("/api/notifications");
+    // On the first poll, prime the seen-set silently; afterwards, toast new opens.
+    for (const n of data.notifications) {
+      if (!seenNotificationIds.has(n.id)) {
+        if (notiPrimed) {
+          const title = n.open_count > 1 ? `${firstName(n.candidate_name)} re-opened your email` : `${firstName(n.candidate_name)} opened your email`;
+          const meta = n.open_count > 1 ? `${n.open_count} opens · ${rel(n.opened_at)}` : rel(n.opened_at);
+          toast(title, meta, "var(--opened)", "eye");
+        }
+        seenNotificationIds.add(n.id);
+      }
+    }
+    notiPrimed = true;
+    renderBell(data);
+    // A freshly opened candidate may have flipped to "opened" — refresh the table.
+    if (data.notifications.length) {
+      const fresh = await api("/api/bootstrap"); candidates = fresh.candidates; render();
+    }
+  } catch (e) { /* transient; try again next tick */ }
+}
+// Fold in follow-ups the recruiter sent from their own email client.
+async function syncSent() {
+  try {
+    const res = await api("/api/sync-sent", "POST");
+    if (res.online && res.recorded) {
+      const fresh = await api("/api/bootstrap"); candidates = fresh.candidates; render();
+    }
+  } catch (e) { /* transient; try again next cycle */ }
+}
+// Check the connected inbox for candidate replies and flip any repliers to Replied.
+let repliesPrimed = false;
+async function checkReplies() {
+  try {
+    const res = await api("/api/check-replies", "POST");
+    if (!res.online || !res.replied.length) { repliesPrimed = true; return; }
+    // Merge the updated (now "replied") candidates into the table.
+    const byId = Object.fromEntries(res.replied.map(c => [c.id, c]));
+    candidates = candidates.map(c => byId[c.id] || c);
+    render();
+    // Announce new replies (silent on the very first pass so we don't re-toast history).
+    if (repliesPrimed) for (const c of res.replied) toast(`${firstName(c.name)} replied`, fmtStamp(c.replied_at), "var(--opened)", "check");
+    repliesPrimed = true;
+  } catch (e) { /* transient; try again next cycle */ }
+}
+$("#bell-btn").onclick = async () => {
+  const drop = $("#bell-drop"); drop.classList.toggle("open");
+  if (drop.classList.contains("open")) {
+    try { await api("/api/notifications/seen", "POST"); $("#bell-count").classList.remove("show"); } catch (e) {}
+  }
+};
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".bell")) $("#bell-drop").classList.remove("open");
+});
+
+// ---- editable design layer ----
+let design = { components: [] };
+let editMode = false, selectedId = null, designSaveTimer = null, dragState = null;
+
+const APPLE_SVG = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8.4C10.8 6.2 8.4 5.5 6.7 6.5 4.6 7.7 4 10.7 5 13.7c.8 2.4 2.2 4.6 3.8 5.4 1 .5 1.8.2 3.2.2s2.2.3 3.2-.2c1.6-.8 3-3 3.8-5.4 1-3 .4-6-1.7-7.2-1.7-1-4.1-.3-5.3 1.9Z" fill="var(--kj)"/><path d="M12.5 8.1c.1-2 1.5-3.5 3.4-3.7" stroke="var(--you)" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>`;
+const dComp = (id) => design.components.find(c => c.id === id);
+const dNewId = () => "cmp_" + Math.random().toString(36).slice(2, 9);
+const toHex = (col) => (col && /^#[0-9a-fA-F]{6}$/.test(col)) ? col : "#333333";
+
+function renderComp(c) {
+  const sel = c.id === selectedId ? " selected" : "";
+  const pos = `left:${c.x||0}px;top:${c.y||0}px;`;
+  if (c.type === "text") {
+    const st = pos + `color:${c.color||'var(--ink)'};font-family:'${c.font||'Inter'}',sans-serif;font-size:${c.size||16}px;font-weight:${c.weight||400};line-height:1.05;`;
+    return `<div class="dcomp text${sel}" data-id="${esc(c.id)}" style="${st}">${esc(c.text||'')}</div>`;
+  }
+  const inner = (!c.src || c.src === "builtin:apple") ? APPLE_SVG(c.w||24) : `<img src="${esc(c.src)}" style="width:${c.w||120}px" alt="" />`;
+  return `<div class="dcomp image${sel}" data-id="${esc(c.id)}" style="${pos}">${inner}</div>`;
+}
+function renderDesign() { $("#design-canvas").innerHTML = design.components.map(renderComp).join(""); }
+async function loadDesign() { try { design = await api("/api/design"); renderDesign(); } catch (e) { /* header just stays empty */ } }
+function saveDesign() { clearTimeout(designSaveTimer); designSaveTimer = setTimeout(() => api("/api/design", "POST", design).catch(() => {}), 400); }
+
+function updateDesignPanel() {
+  const panel = $("#design-panel"), c = selectedId ? dComp(selectedId) : null;
+  if (!c || !editMode) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const isText = c.type === "text";
+  $("#dp-text-controls").hidden = !isText;
+  $("#dp-image-controls").hidden = isText;
+  $("#dp-title").textContent = isText ? "Text" : "Image";
+  if (isText) {
+    $("#dp-text").value = c.text || "";
+    $("#dp-font").value = c.font || "Inter";
+    $("#dp-size").value = c.size || 16;
+    $("#dp-weight").value = String(c.weight || 400);
+    $("#dp-color").value = toHex(c.color);
+  } else {
+    $("#dp-width").value = c.w || 120;
+  }
+}
+function selectComp(id) {
+  selectedId = id;
+  document.querySelectorAll("#design-canvas .dcomp").forEach(el => el.classList.toggle("selected", el.dataset.id === id));
+  updateDesignPanel();
+}
+function updateSel(key, value) { const c = dComp(selectedId); if (c) { c[key] = value; renderDesign(); saveDesign(); } }
+
+function setEditMode(on) {
+  editMode = on;
+  document.body.classList.toggle("editing", on);
+  $("#edit-design-btn").classList.toggle("active", on);
+  $("#edit-design-btn").textContent = on ? "Done" : "Edit design";
+  $("#design-add-text").hidden = !on;
+  $("#design-add-image").hidden = !on;
+  if (!on) selectComp(null);
+}
+$("#edit-design-btn").onclick = () => setEditMode(!editMode);
+$("#dp-close").onclick = () => selectComp(null);
+
+// panel controls
+$("#dp-text").oninput = () => updateSel("text", $("#dp-text").value);
+$("#dp-font").onchange = () => updateSel("font", $("#dp-font").value);
+$("#dp-size").oninput = () => updateSel("size", parseInt($("#dp-size").value) || 16);
+$("#dp-weight").onchange = () => updateSel("weight", parseInt($("#dp-weight").value));
+$("#dp-color").oninput = () => updateSel("color", $("#dp-color").value);
+$("#dp-width").oninput = () => updateSel("w", parseInt($("#dp-width").value) || 120);
+$("#dp-delete").onclick = () => { design.components = design.components.filter(c => c.id !== selectedId); selectComp(null); renderDesign(); saveDesign(); };
+$("#design-add-text").onclick = () => { const c = { id: dNewId(), type: "text", text: "new text", x: 20, y: 20, size: 22, weight: 600, color: "#33372B", font: "Space Grotesk" }; design.components.push(c); renderDesign(); selectComp(c.id); saveDesign(); };
+$("#design-add-image").onclick = () => { const c = { id: dNewId(), type: "image", src: "builtin:apple", x: 20, y: 20, w: 60 }; design.components.push(c); renderDesign(); selectComp(c.id); saveDesign(); };
+$("#dp-upload").onchange = async () => {
+  const file = $("#dp-upload").files[0]; if (!file) return;
+  const fd = new FormData(); fd.append("image", file);
+  try {
+    const res = await fetch("/api/design/image", { method: "POST", body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "upload failed");
+    const { src } = await res.json();
+    const c = dComp(selectedId); if (c) { c.src = src; renderDesign(); saveDesign(); }
+  } catch (e) { toast("Couldn't upload image", e.message, "var(--kj)"); }
+  $("#dp-upload").value = "";
+};
+
+// drag to reposition (edit mode only)
+$("#design-canvas").addEventListener("pointerdown", (e) => {
+  if (!editMode) return;
+  const el = e.target.closest(".dcomp");
+  if (!el) { selectComp(null); return; }
+  const c = dComp(el.dataset.id); if (!c) return;
+  selectComp(c.id);
+  dragState = { id: c.id, startX: e.clientX, startY: e.clientY, origX: c.x || 0, origY: c.y || 0, el };
+  el.classList.add("dragging");
+  e.preventDefault();
+});
+document.addEventListener("pointermove", (e) => {
+  if (!dragState) return;
+  const c = dComp(dragState.id); if (!c) return;
+  c.x = Math.max(0, Math.round(dragState.origX + (e.clientX - dragState.startX)));
+  c.y = Math.max(0, Math.round(dragState.origY + (e.clientY - dragState.startY)));
+  dragState.el.style.left = c.x + "px";
+  dragState.el.style.top = c.y + "px";
+});
+document.addEventListener("pointerup", () => {
+  if (!dragState) return;
+  dragState.el.classList.remove("dragging");
+  dragState = null;
+  saveDesign();
+});
+
+// ---- boot ----
+function hydrateInboxes() {
+  inboxByKey = Object.fromEntries(inboxes.map(i => [i.key, i]));
+  document.querySelectorAll(".fromopt").forEach(b => {
+    const i = inboxByKey[b.dataset.id]; if (!i) return;
+    b.querySelector(".addr").textContent = i.address || "(set your address)";
+  });
+}
+function hydrateTemplates() {
+  templateById = Object.fromEntries(templates.map(t => [t.id, t]));
+  $("#template").innerHTML = '<option value="">✍️ write from scratch</option>'
+    + templates.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
+}
+async function boot() {
+  try {
+    const data = await api("/api/bootstrap");
+    candidates = data.candidates; templates = data.templates; inboxes = data.inboxes; settings = data.settings || {};
+    contactoutConfigured = !!data.contactout_configured;
+    stages = data.stages || [];
+    hydrateInboxes(); hydrateTemplates(); renderSettingsForm(); render();
+    loadDesign();
+    pollNotifications();
+    setInterval(pollNotifications, 20000);
+    checkReplies();
+    setInterval(checkReplies, 120000);  // scan for replies every 2 minutes
+    syncSent();
+    setInterval(syncSent, 180000);      // fold in off-platform sends every 3 minutes
+  } catch (e) {
+    rowsEl.innerHTML = `<tr><td colspan="5" class="email" style="padding:24px">Couldn't load your candidates: ${esc(e.message)}</td></tr>`;
+  }
+}
+boot();
+</script>
+</body>
+</html>

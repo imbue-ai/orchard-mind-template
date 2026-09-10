@@ -1,52 +1,63 @@
-# Your workspace
+<p align="center">
+  <img alt="Orchard" src="template.svg" width="480">
+</p>
 
-This folder is your mind's home: everything it knows, everything it builds,
-and the machinery that keeps it running.
+# Orchard
 
-## Creations
+<p align="center">
+  <a href="https://boweiliu.github.io/open-in-minds/?git_url=https://github.com/imbue-ai/orchard-mind-template"><img alt="Open in Minds" height="64" src="https://img.shields.io/badge/Open%20in%20Minds-D8D1C0?style=for-the-badge"></a>
+</p>
 
-Broadly, in Minds you make "creations". These can be "code" (apps, skills, and
-the services behind them) or "data" (documents, images, notes).
+Didn't work? Create a Minds workspace and paste this to your agent:
+` /use-template https://github.com/imbue-ai/orchard-mind-template`
 
-Minds makes this easier by defining some conventions for the common things
-you'll want to make:
+## Why you care
 
-1. an "app" - something you can open as a tab and interact with
-2. a "skill" - teaches your mind how to do work you care about. A skill that
-   is automatically run on a schedule is called an "automation" (the
-   machinery that runs them lives in `system/libs/automations/`; the weekly
-   Caretaker is the built-in example)
-3. some "data" - documents, images, notes, or data created by your apps and
-   skills
-4. some "customizations" - changes to any of the above. Everything in Minds
-   can be modified by you!
+Reaching out to a list of candidates by hand -- tracking who you've contacted,
+writing the same email over and over with small tweaks, and never knowing
+whether anyone actually opened it -- doesn't scale past a handful of people.
+Orchard is a single board that runs the whole cold-outreach loop: a candidate
+pipeline, templated emails sent from your own (and your teammates') Gmail,
+and open-tracking so you know what landed.
 
-## What's here
+## How to use it
 
-- `apps/` - Everything you can open as a tab: the built-in apps (the
-  terminal, the browser) and the apps your mind builds for you. (A shortcut
-  to `system/apps/`.)
-- `skills/` - Everything your mind knows how to do: the built-in skills and
-  the ones it has learned for you. (A shortcut to `.agents/skills/`.)
-- `data/` - Your workspace's data: documents and project folders, files
-  you've uploaded, your mind's memories, and each app's stored data.
-- `docs/` - Guides to this workspace: what it is, how it works, and a history
-  of where it came from.
-- `system/` - The machinery that runs the workspace: the apps themselves,
-  background services, scripts, and configuration. You can look around (every
-  folder has a README), and your mind maintains it for you.
+Open the tab and you'll see an empty candidate table. From there:
 
-A few housekeeping files live alongside them:
+- **Add a candidate** -- name, LinkedIn URL, company, role. "Find email" looks
+  up their address from the LinkedIn URL via ContactOut, if you've added a
+  token in Settings.
+- **Write (or AI-draft) a template** -- reusable subject/body with
+  `{{first_name}}` / `{{company}}` / `{{role}}` / `{{sender_name}}` tokens
+  filled in per candidate. Paste writing samples into the voices panel and
+  Claude can draft a template that sounds like you (or a teammate).
+- **Compose and send** -- pick a candidate, a template, and which of your
+  three inboxes to send from; the live preview shows exactly what they'll get
+  before you send it through Gmail.
+- **Watch the pipeline move** -- a candidate advances from "not contacted" to
+  "reached out" to "replied" automatically as you send and as replies come in;
+  an invisible tracking pixel raises a notification the moment someone opens
+  your email.
 
-- `README.md` - This file.
-- `CLAUDE.md` - The standing instructions your mind follows.
-- `pyproject.toml` and `uv.lock` - The Python project definition; the tooling
-  requires them at the top level.
+## Ideas for making it yours
 
-## Where things are kept safe
+- Swap the example teammate inboxes ("Alex", "Sam") for your actual
+  colleagues, so all three sending identities are real.
+- Replace the two seed templates with the outreach copy you actually use.
+- Paste in real writing samples for each sender so the AI voice-drafting
+  sounds like the people actually sending the mail, not a generic recruiter.
+- Add your own pitch ideas (what makes your company worth joining) and let
+  Claude turn them into a template.
+- Swap the Cloudflare quick tunnel for a named tunnel on your own domain if
+  you want tracking links that don't rotate on every restart.
 
-The workspace is a git repository: code and configuration changes are
-committed as your mind works. Everything under `data/` is deliberately kept
-out of git (it can be large, personal, or both) and is protected by the
-workspace's continuous encrypted backup instead, along with the rest of the
-workspace. See `docs/` for details.
+## What this is
+
+This repository is a published **minds template**: a clean, bootable
+snapshot of what a mind built, ready to adapt into your own. It is NOT the
+generic workspace template -- it is this specific project.
+
+[`template.md`](template.md) is the full manifest -- what it is, how it
+works, what it needs to run, and what to adapt -- with the
+machine-readable half (recipe, requirements, and the environment it needs
+installed) in [`template.toml`](template.toml).

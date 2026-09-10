@@ -1,0 +1,115 @@
+# Machine-readable manifest for this template. The sibling
+# template.md holds the prose, the Requirements list, and the two
+# append-only history logs; this file is authoritative for everything
+# below. Both are generated together -- validate_template.py fails if
+# they disagree.
+format = "v2"
+
+[template]
+slug = "orchard"
+title = "Orchard"
+description = "A recruiter's candidate pipeline with templated, multi-inbox outreach and email open-tracking"
+thumbnail = "template.svg"
+version = "v1"
+
+# How this template is DERIVED from the workspace it came from. An
+# update re-runs this recipe rather than diffing two repos, which is what
+# keeps an exclusion excluded even though the thing still exists upstream.
+[recipe]
+include = ["system/apps/orchard", "system/scripts/env.d/2000-orchard-cloudflared.sh", "system/supervisord.conf"]
+data_include = []
+exclude = [
+    "data/.apps/orchard (all of the live mind's Orchard runtime data -- real candidates and their raw ContactOut payloads, saved templates, voice samples, pitch ideas, open/reply notifications, settings, and the ContactOut API token; user-private, never shipped)",
+    "system/supervisord.conf is included, but only ITS orchard/orchard-pixel/orchard-tunnel program blocks -- other unrelated program blocks that had accumulated on the source workspace's live supervisord.conf (from other apps built in that workspace, unrelated to Orchard) are stripped so only Orchard's own wiring ships",
+]
+modification_rules = []
+
+# Everything an adopter must deal with before this is really theirs.
+# One list -- but each entry's KIND says how it is handled, because the
+# two are handled at different times by different mechanisms:
+#
+#   permission / secret / llm = ACTIVATION. The adopting agent acts on
+#   these FIRST and BY ITSELF, initiating each latchkey permission
+#   request before asking the user anything. Every one of them must have
+#   a matching requires_ line in template.md and vice versa -- the
+#   validator checks that, because an adopter once never got prompted
+#   for a permission the app needed.
+#
+#   adaptation = worked through INTERACTIVELY with the user afterwards.
+#   Prose on both sides, so it is not cross-checked.
+#
+# FILL IN, e.g.:
+#   [[requirements.permission]]
+#   scope = "slack-api"
+#   permission = "slack-read-all"
+#
+#   [[requirements.secret]]
+#   name = "SLACK_SIGNING_SECRET"
+#
+#   [requirements.llm]
+#   method = "keyed"   # keyed (an API key, e.g. ANTHROPIC_API_KEY) | keyless (a subscription CLI, e.g. claude -p)
+#
+#   [[requirements.adaptation]]
+#   summary = "the digest channel is hardcoded"
+#   resolution = "ask the user which channel to watch"
+[requirements]
+
+[[requirements.permission]]
+scope = "google-gmail-api"
+permission = "google-gmail-send-messages"
+
+[[requirements.permission]]
+scope = "google-gmail-api"
+permission = "google-gmail-read-all"
+
+[[requirements.secret]]
+name = "ContactOut API token"
+
+[requirements.llm]
+method = "keyless"
+
+[[requirements.adaptation]]
+summary = "the three supervisord programs ship autostart=false"
+resolution = "flip orchard, orchard-pixel, and orchard-tunnel to autostart=true in system/supervisord.conf (and supervisorctl reread/update) once Gmail is connected and the app has real candidates"
+
+[[requirements.adaptation]]
+summary = "sender identities are generic examples (you / Alex <alex@example.com> / Sam <sam@example.com>)"
+resolution = "replace the two example teammates with the user's real colleagues' names and verified Gmail send-as addresses; keep the you/josh/kj inbox keys and CSS accent variables unchanged; update the hardcoded verification-address list in assets/app.html (~line 1138) to match"
+
+[[requirements.adaptation]]
+summary = "open-tracking depends on the public pixel tunnel being reachable"
+resolution = "mail still sends without it, just untracked; an adopter who wants durable (non-rotating) tracking would swap the Cloudflare quick tunnel for a named tunnel on their own domain"
+
+[[requirements.adaptation]]
+summary = "the AI path (ai.py) is hardcoded to keyless claude -p"
+resolution = "on a workspace using the keyed litellm / ANTHROPIC_API_KEY path, re-point ai.complete / ai.research per the use-ai-integration skill"
+
+[[requirements.adaptation]]
+summary = "seed content (two default templates, two 'you' voice samples) is illustrative filler"
+resolution = "replace with the user's own templates and real writing samples once they are actually onboarded"
+
+[[requirements.adaptation]]
+summary = "reply/open bookkeeping only sees the connected 'you' mailbox"
+resolution = "replies to, and follow-ups sent from, a teammate alias's own Google account are invisible to reply detection and the off-platform send sync -- no fix needed, just tell the user this limitation exists"
+
+# What the included code needs INSTALLED. apt takes bare names: versions
+# are a function of the apt snapshot timestamp, so replaying names at the
+# adopter's timestamp yields versions consistent with the rest of their
+# environment. The other sources are not snapshot-pinned, so for them the
+# recorded version IS the pin (name = version).
+#
+# FILL IN from what the included code actually needs, e.g.:
+#   apt = ["poppler-utils"]
+#   [environment.npm_global]
+#   "@slack/cli" = "2.1.0"
+#   [environment.uv_tools]
+#   yt-dlp = "2026.7.1"
+#   [environment.cargo_crates]
+#   fd-find = "9.0.0"
+#
+# For an install with no package database (a URL-fetched binary, a browser),
+# ship a system/scripts/env.d/<NNNN>-<slug>-<name>.sh unit with NNNN >= 2000,
+# include it in the recipe above, and list it in env_d_units.
+[environment]
+apt = []
+env_d_units = ["system/scripts/env.d/2000-orchard-cloudflared.sh"]
